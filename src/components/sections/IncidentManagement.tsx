@@ -19,42 +19,38 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
-import { AlertTriangle, Search, Filter, Plus, Eye, Edit, Clock } from 'lucide-react';
+import { AlertTriangle, Search, Filter, Plus, Eye, Edit, Clock, ExternalLink } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useIncidents } from '@/hooks/useIncidents';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { IncidentDetail } from '@/components/IncidentDetail';
 
 export function IncidentManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
+  
+  const { data: incidents = [], isLoading, error } = useIncidents();
 
-  // Mock data - akan diganti dengan data dari Supabase
-  const incidents = [
-    {
-      id: '1',
-      incident_id: 'INC-001',
-      incident_number: 'INC-2024-001',
-      priority: 'High',
-      customer: 'ABC Corporation',
-      analyst: 'John Doe',
-      status: 'active',
-      creation_time: '2024-01-15T10:30:00Z',
-      sla_target_time: '2024-01-15T14:30:00Z',
-      jira_ticket_id: 'JIRA-123',
-      customer_notification: 'pending'
-    },
-    {
-      id: '2',
-      incident_id: 'INC-002',
-      incident_number: 'INC-2024-002',
-      priority: 'Medium',
-      customer: 'XYZ Limited',
-      analyst: 'Jane Smith',
-      status: 'active',
-      creation_time: '2024-01-15T11:45:00Z',
-      sla_target_time: '2024-01-15T19:45:00Z',
-      jira_ticket_id: 'JIRA-124',
-      customer_notification: 'confirmed_sent'
-    }
-  ];
+  const filteredIncidents = incidents.filter(incident => {
+    const matchesSearch = incident.incident_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         incident.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (incident.analyst_name && incident.analyst_name.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const matchesStatus = statusFilter === 'all' || incident.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
+
+  // Calculate stats
+  const activeIncidents = incidents.filter(i => i.status === 'active').length;
+  const highPriorityIncidents = incidents.filter(i => i.priority === 'High' && i.status === 'active').length;
+  const slaRiskIncidents = incidents.filter(i => i.sla_remaining_seconds > 0 && i.sla_remaining_seconds <= 900 && i.status === 'active').length;
+  const resolvedToday = incidents.filter(i => {
+    if (!i.closed_time) return false;
+    const today = new Date().toDateString();
+    return new Date(i.closed_time).toDateString() === today;
+  }).length;
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -75,6 +71,13 @@ export function IncidentManagement() {
     }
   };
 
+  const getSLAStatusColor = (slaStatus: string, remainingSeconds: number) => {
+    if (slaStatus === 'breach') return 'bg-red-100 text-red-800';
+    if (remainingSeconds <= 900 && remainingSeconds > 0) return 'bg-orange-100 text-orange-800';
+    if (slaStatus === 'met') return 'bg-green-100 text-green-800';
+    return 'bg-blue-100 text-blue-800';
+  };
+
   const formatDateTime = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -83,6 +86,34 @@ export function IncidentManagement() {
       minute: '2-digit'
     });
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
+          <div className="grid grid-cols-4 gap-4 mb-6">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="h-24 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+          <div className="h-96 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center text-red-600">
+          <AlertTriangle className="mx-auto h-12 w-12 mb-4" />
+          <h3 className="text-lg font-medium">Error loading incidents</h3>
+          <p className="text-sm">Please try refreshing the page</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -105,7 +136,7 @@ export function IncidentManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Active</p>
-                <p className="text-2xl font-bold text-blue-600">12</p>
+                <p className="text-2xl font-bold text-blue-600">{activeIncidents}</p>
               </div>
               <AlertTriangle className="w-8 h-8 text-blue-600" />
             </div>
@@ -117,7 +148,7 @@ export function IncidentManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">High Priority</p>
-                <p className="text-2xl font-bold text-red-600">3</p>
+                <p className="text-2xl font-bold text-red-600">{highPriorityIncidents}</p>
               </div>
               <AlertTriangle className="w-8 h-8 text-red-600" />
             </div>
@@ -129,7 +160,7 @@ export function IncidentManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">SLA Risk</p>
-                <p className="text-2xl font-bold text-orange-600">2</p>
+                <p className="text-2xl font-bold text-orange-600">{slaRiskIncidents}</p>
               </div>
               <Clock className="w-8 h-8 text-orange-600" />
             </div>
@@ -141,7 +172,7 @@ export function IncidentManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Resolved Today</p>
-                <p className="text-2xl font-bold text-green-600">8</p>
+                <p className="text-2xl font-bold text-green-600">{resolvedToday}</p>
               </div>
               <AlertTriangle className="w-8 h-8 text-green-600" />
             </div>
@@ -196,13 +227,14 @@ export function IncidentManagement() {
                       <TableHead>Customer</TableHead>
                       <TableHead>Analyst</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>SLA Status</TableHead>
                       <TableHead>Created</TableHead>
                       <TableHead>SLA Target</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {incidents.map((incident) => (
+                    {filteredIncidents.map((incident) => (
                       <TableRow key={incident.id}>
                         <TableCell className="font-medium">
                           <div>
@@ -215,23 +247,57 @@ export function IncidentManagement() {
                             {incident.priority}
                           </Badge>
                         </TableCell>
-                        <TableCell>{incident.customer}</TableCell>
-                        <TableCell>{incident.analyst}</TableCell>
+                        <TableCell>{incident.customer_name}</TableCell>
+                        <TableCell>{incident.analyst_name || 'Unassigned'}</TableCell>
                         <TableCell>
                           <Badge className={getStatusColor(incident.status)}>
                             {incident.status}
                           </Badge>
                         </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <Badge className={getSLAStatusColor(incident.sla_status, incident.sla_remaining_seconds)}>
+                              {incident.sla_status}
+                            </Badge>
+                            {incident.status === 'active' && (
+                              <p className="text-xs text-gray-500">{incident.sla_remaining_formatted}</p>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>{formatDateTime(incident.creation_time)}</TableCell>
-                        <TableCell>{formatDateTime(incident.sla_target_time)}</TableCell>
+                        <TableCell>
+                          {incident.sla_target_time && formatDateTime(incident.sla_target_time)}
+                        </TableCell>
                         <TableCell>
                           <div className="flex gap-2">
-                            <Button variant="ghost" size="sm">
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm">
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  onClick={() => setSelectedIncidentId(incident.incident_id)}
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                                <DialogHeader>
+                                  <DialogTitle>Incident Details - {incident.incident_number}</DialogTitle>
+                                </DialogHeader>
+                                {selectedIncidentId && (
+                                  <IncidentDetail incidentId={selectedIncidentId} />
+                                )}
+                              </DialogContent>
+                            </Dialog>
+                            <Button variant="ghost">
                               <Edit className="w-4 h-4" />
                             </Button>
+                            {incident.incident_url && (
+                              <Button variant="ghost" asChild>
+                                <a href={incident.incident_url} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="w-4 h-4" />
+                                </a>
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -250,16 +316,21 @@ export function IncidentManagement() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      {incidents.filter(i => i.status === 'active').map((incident) => (
+                      {filteredIncidents.filter(i => i.status === 'active').map((incident) => (
                         <Card key={incident.id} className="p-3">
                           <div className="flex justify-between items-start mb-2">
                             <p className="font-medium text-sm">{incident.incident_number}</p>
-                            <Badge className={getPriorityColor(incident.priority)} size="sm">
+                            <Badge className={getPriorityColor(incident.priority)}>
                               {incident.priority}
                             </Badge>
                           </div>
-                          <p className="text-sm text-gray-600 mb-2">{incident.customer}</p>
-                          <p className="text-xs text-gray-500">Assigned: {incident.analyst}</p>
+                          <p className="text-sm text-gray-600 mb-2">{incident.customer_name}</p>
+                          <p className="text-xs text-gray-500">Assigned: {incident.analyst_name || 'Unassigned'}</p>
+                          <div className="mt-2">
+                            <Badge className={getSLAStatusColor(incident.sla_status, incident.sla_remaining_seconds)}>
+                              {incident.sla_remaining_formatted}
+                            </Badge>
+                          </div>
                         </Card>
                       ))}
                     </div>
@@ -284,8 +355,21 @@ export function IncidentManagement() {
                     <CardDescription>Completed incidents</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-center text-gray-500 py-8">
-                      Recently resolved incidents will appear here
+                    <div className="space-y-3">
+                      {filteredIncidents.filter(i => i.status === 'closed').slice(0, 5).map((incident) => (
+                        <Card key={incident.id} className="p-3">
+                          <div className="flex justify-between items-start mb-2">
+                            <p className="font-medium text-sm">{incident.incident_number}</p>
+                            <Badge className={getPriorityColor(incident.priority)}>
+                              {incident.priority}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-2">{incident.customer_name}</p>
+                          <p className="text-xs text-gray-500">
+                            Resolved: {incident.closed_time && formatDateTime(incident.closed_time)}
+                          </p>
+                        </Card>
+                      ))}
                     </div>
                   </CardContent>
                 </Card>

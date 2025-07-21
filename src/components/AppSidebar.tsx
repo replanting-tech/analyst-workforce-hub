@@ -73,12 +73,13 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ activeSection = "overview", onSectionChange }: AppSidebarProps) {
-  const { collapsed } = useSidebar();
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
 
   return (
-    <Sidebar className={collapsed ? "w-14" : "w-64"} collapsible>
+    <Sidebar className={isCollapsed ? "w-14" : "w-64"} collapsible="icon">
       <SidebarHeader className="border-b border-gray-200 p-4">
-        {!collapsed && (
+        {!isCollapsed && (
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
               <Settings className="w-5 h-5 text-white" />
@@ -89,7 +90,7 @@ export function AppSidebar({ activeSection = "overview", onSectionChange }: AppS
             </div>
           </div>
         )}
-        {collapsed && (
+        {isCollapsed && (
           <div className="flex justify-center">
             <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
               <Settings className="w-5 h-5 text-white" />
@@ -113,8 +114,8 @@ export function AppSidebar({ activeSection = "overview", onSectionChange }: AppS
                         : 'text-gray-700 hover:bg-gray-100'
                     } transition-colors`}
                   >
-                    <item.icon className={`${collapsed ? 'mr-0' : 'mr-2'} h-4 w-4`} />
-                    {!collapsed && <span>{item.title}</span>}
+                    <item.icon className={`${isCollapsed ? 'mr-0' : 'mr-2'} h-4 w-4`} />
+                    {!isCollapsed && <span>{item.title}</span>}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

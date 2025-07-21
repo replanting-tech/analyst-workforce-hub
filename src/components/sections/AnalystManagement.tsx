@@ -21,47 +21,29 @@ import {
 } from "@/components/ui/select";
 import { Users, Search, Plus, Edit, UserCheck, UserX, Activity } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAnalysts } from '@/hooks/useAnalysts';
 
 export function AnalystManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  
+  const { data: analysts = [], isLoading, error } = useAnalysts();
 
-  // Mock data - akan diganti dengan data dari Supabase
-  const analysts = [
-    {
-      id: '1',
-      code: 'ANALYST001',
-      name: 'John Doe',
-      email: 'john.doe@company.com',
-      availability: 'available',
-      status: 'active',
-      activeIncidents: 3,
-      totalIncidents: 15,
-      created_at: '2024-01-10T00:00:00Z'
-    },
-    {
-      id: '2',
-      code: 'ANALYST002',
-      name: 'Jane Smith',
-      email: 'jane.smith@company.com',
-      availability: 'busy',
-      status: 'active',
-      activeIncidents: 5,
-      totalIncidents: 28,
-      created_at: '2024-01-08T00:00:00Z'
-    },
-    {
-      id: '3',
-      code: 'ANALYST003',
-      name: 'Mike Johnson',
-      email: 'mike.johnson@company.com',
-      availability: 'offline',
-      status: 'inactive',
-      activeIncidents: 0,
-      totalIncidents: 42,
-      created_at: '2024-01-05T00:00:00Z'
-    }
-  ];
+  const filteredAnalysts = analysts.filter(analyst => {
+    const matchesSearch = analyst.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         analyst.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         analyst.email.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = statusFilter === 'all' || analyst.availability === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
+
+  // Calculate stats
+  const totalAnalysts = analysts.length;
+  const availableAnalysts = analysts.filter(a => a.availability === 'available').length;
+  const busyAnalysts = analysts.filter(a => a.availability === 'busy').length;
+  const offlineAnalysts = analysts.filter(a => a.availability === 'offline').length;
 
   const getAvailabilityColor = (availability: string) => {
     switch (availability) {
@@ -72,17 +54,37 @@ export function AnalystManagement() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-blue-100 text-blue-800';
-      case 'inactive': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
+          <div className="grid grid-cols-4 gap-4 mb-6">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="h-24 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+          <div className="h-96 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center text-red-600">
+          <Users className="mx-auto h-12 w-12 mb-4" />
+          <h3 className="text-lg font-medium">Error loading analysts</h3>
+          <p className="text-sm">Please try refreshing the page</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -105,7 +107,7 @@ export function AnalystManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Analysts</p>
-                <p className="text-2xl font-bold text-blue-600">8</p>
+                <p className="text-2xl font-bold text-blue-600">{totalAnalysts}</p>
               </div>
               <Users className="w-8 h-8 text-blue-600" />
             </div>
@@ -117,7 +119,7 @@ export function AnalystManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Available</p>
-                <p className="text-2xl font-bold text-green-600">5</p>
+                <p className="text-2xl font-bold text-green-600">{availableAnalysts}</p>
               </div>
               <UserCheck className="w-8 h-8 text-green-600" />
             </div>
@@ -129,7 +131,7 @@ export function AnalystManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Busy</p>
-                <p className="text-2xl font-bold text-orange-600">2</p>
+                <p className="text-2xl font-bold text-orange-600">{busyAnalysts}</p>
               </div>
               <Activity className="w-8 h-8 text-orange-600" />
             </div>
@@ -141,7 +143,7 @@ export function AnalystManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Offline</p>
-                <p className="text-2xl font-bold text-gray-600">1</p>
+                <p className="text-2xl font-bold text-gray-600">{offlineAnalysts}</p>
               </div>
               <UserX className="w-8 h-8 text-gray-600" />
             </div>
@@ -171,8 +173,9 @@ export function AnalystManagement() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="available">Available</SelectItem>
+                  <SelectItem value="busy">Busy</SelectItem>
+                  <SelectItem value="offline">Offline</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -188,15 +191,15 @@ export function AnalystManagement() {
                   <TableHead>Code</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Availability</TableHead>
-                  <TableHead>Status</TableHead>
                   <TableHead>Active Cases</TableHead>
-                  <TableHead>Total Cases</TableHead>
+                  <TableHead>Today Closed</TableHead>
+                  <TableHead>Today Total</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {analysts.map((analyst) => (
-                  <TableRow key={analyst.id}>
+                {filteredAnalysts.map((analyst) => (
+                  <TableRow key={analyst.code}>
                     <TableCell>
                       <div className="flex items-center space-x-3">
                         <Avatar className="w-8 h-8">
@@ -208,7 +211,10 @@ export function AnalystManagement() {
                         <div>
                           <p className="font-medium">{analyst.name}</p>
                           <p className="text-xs text-gray-500">
-                            Joined {new Date(analyst.created_at).toLocaleDateString()}
+                            Updated: {analyst.workload_updated_at 
+                              ? new Date(analyst.workload_updated_at).toLocaleDateString()
+                              : 'N/A'
+                            }
                           </p>
                         </div>
                       </div>
@@ -225,14 +231,10 @@ export function AnalystManagement() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getStatusColor(analyst.status)}>
-                        {analyst.status}
-                      </Badge>
+                      <span className="font-medium">{analyst.current_active_incidents}</span>
                     </TableCell>
-                    <TableCell>
-                      <span className="font-medium">{analyst.activeIncidents}</span>
-                    </TableCell>
-                    <TableCell>{analyst.totalIncidents}</TableCell>
+                    <TableCell>{analyst.today_closed_incidents}</TableCell>
+                    <TableCell>{analyst.today_total_incidents}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         <Button variant="ghost" size="sm">
@@ -260,8 +262,8 @@ export function AnalystManagement() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {analysts.filter(a => a.status === 'active').map((analyst) => (
-                <div key={analyst.id} className="flex items-center justify-between">
+              {filteredAnalysts.map((analyst) => (
+                <div key={analyst.code} className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <Avatar className="w-6 h-6">
                       <AvatarFallback className="text-xs">
@@ -274,11 +276,11 @@ export function AnalystManagement() {
                     <div className="w-24 bg-gray-200 rounded-full h-2">
                       <div 
                         className="bg-blue-600 h-2 rounded-full" 
-                        style={{width: `${(analyst.activeIncidents / 10) * 100}%`}}
+                        style={{width: `${Math.min((analyst.current_active_incidents / 10) * 100, 100)}%`}}
                       ></div>
                     </div>
                     <span className="text-sm text-gray-600 w-12 text-right">
-                      {analyst.activeIncidents}/10
+                      {analyst.current_active_incidents}/10
                     </span>
                   </div>
                 </div>
@@ -290,30 +292,32 @@ export function AnalystManagement() {
         <Card>
           <CardHeader>
             <CardTitle>Performance Metrics</CardTitle>
-            <CardDescription>Analyst performance over the last 30 days</CardDescription>
+            <CardDescription>Analyst performance today</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {analysts.filter(a => a.status === 'active').map((analyst) => (
-                <div key={analyst.id} className="p-3 border rounded-lg">
+              {filteredAnalysts.slice(0, 5).map((analyst) => (
+                <div key={analyst.code} className="p-3 border rounded-lg">
                   <div className="flex justify-between items-center mb-2">
                     <span className="font-medium text-sm">{analyst.name}</span>
                     <Badge variant="secondary">
-                      {Math.floor(Math.random() * 20 + 80)}% SLA
+                      {analyst.today_closed_incidents > 0 
+                        ? Math.round((analyst.today_closed_incidents / analyst.today_total_incidents) * 100)
+                        : 0}% Resolution
                     </Badge>
                   </div>
                   <div className="grid grid-cols-3 gap-4 text-sm">
                     <div>
-                      <p className="text-gray-600">Resolved</p>
-                      <p className="font-medium">{Math.floor(Math.random() * 10 + 5)}</p>
+                      <p className="text-gray-600">Active</p>
+                      <p className="font-medium">{analyst.current_active_incidents}</p>
                     </div>
                     <div>
-                      <p className="text-gray-600">Avg Time</p>
-                      <p className="font-medium">{Math.floor(Math.random() * 60 + 30)}min</p>
+                      <p className="text-gray-600">Closed</p>
+                      <p className="font-medium">{analyst.today_closed_incidents}</p>
                     </div>
                     <div>
-                      <p className="text-gray-600">Rating</p>
-                      <p className="font-medium">{(Math.random() * 1 + 4).toFixed(1)}⭐</p>
+                      <p className="text-gray-600">Total</p>
+                      <p className="font-medium">{analyst.today_total_incidents}</p>
                     </div>
                   </div>
                 </div>

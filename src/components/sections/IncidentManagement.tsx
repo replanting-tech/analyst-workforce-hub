@@ -1,5 +1,5 @@
-
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,13 +22,11 @@ import {
 import { AlertTriangle, Search, Filter, Plus, Eye, Edit, Clock, ExternalLink } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIncidents } from '@/hooks/useIncidents';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { IncidentDetail } from '@/components/IncidentDetail';
 
 export function IncidentManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
+  const navigate = useNavigate();
   
   const { data: incidents = [], isLoading, error } = useIncidents();
 
@@ -270,24 +268,12 @@ export function IncidentManagement() {
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-2">
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button 
-                                  variant="ghost" 
-                                  onClick={() => setSelectedIncidentId(incident.incident_id)}
-                                >
-                                  <Eye className="w-4 h-4" />
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                                <DialogHeader>
-                                  <DialogTitle>Incident Details - {incident.incident_number}</DialogTitle>
-                                </DialogHeader>
-                                {selectedIncidentId && (
-                                  <IncidentDetail incidentId={selectedIncidentId} />
-                                )}
-                              </DialogContent>
-                            </Dialog>
+                            <Button 
+                              variant="ghost" 
+                              onClick={() => navigate(`/incident/${incident.incident_id}`)}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
                             <Button variant="ghost">
                               <Edit className="w-4 h-4" />
                             </Button>

@@ -78,15 +78,15 @@ export function AppSidebar({ activeSection = "overview", onSectionChange }: AppS
 
   return (
     <Sidebar className={isCollapsed ? "w-14" : "w-64"} collapsible="icon">
-      <SidebarHeader className="border-b border-gray-200 p-4">
+      <SidebarHeader className="border-b border-border p-4">
         {!isCollapsed && (
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
               <Settings className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Service Manager</h2>
-              <p className="text-xs text-gray-500">Provider Portal</p>
+              <h2 className="text-lg font-semibold text-foreground">Incident Response</h2>
+              <p className="text-xs text-muted-foreground">Management Platform</p>
             </div>
           </div>
         )}
@@ -110,8 +110,8 @@ export function AppSidebar({ activeSection = "overview", onSectionChange }: AppS
                     onClick={() => onSectionChange?.(item.section)}
                     className={`${
                       activeSection === item.section 
-                        ? 'bg-blue-100 text-blue-700 border-r-2 border-blue-600' 
-                        : 'text-gray-700 hover:bg-gray-100'
+                        ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border-r-2 border-blue-600' 
+                        : 'text-foreground hover:bg-muted'
                     } transition-colors`}
                   >
                     <item.icon className={`${isCollapsed ? 'mr-0' : 'mr-2'} h-4 w-4`} />

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useIncidentById } from '@/hooks/useIncidents';
 import { AlertTriangle, Clock, User, Building2, ExternalLink, Calendar, Target, FileText, AlertCircle, Database, Mail } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RichTextEditor } from './RichTextEditor';
 
 interface IncidentDetailProps {
   incidentId: string;
@@ -14,6 +15,7 @@ interface IncidentDetailProps {
 export function IncidentDetail({ incidentId }: IncidentDetailProps) {
   const { data: incident, isLoading, error } = useIncidentById(incidentId);
   const [remainingTime, setRemainingTime] = useState<string>('');
+  const [recommendationAnalysis, setRecommendationAnalysis] = useState<string>('');
 
   // Live countdown timer for SLA
   useEffect(() => {
@@ -110,52 +112,52 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header Information */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="flex gap-6 h-full">
+      {/* Left Column - Main Content */}
+      <div className="flex-1 space-y-6">
+        {/* Basic Information */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
               <AlertTriangle className="w-5 h-5" />
               Basic Information
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-3 gap-4">
               <div>
-                <p className="text-sm font-medium text-gray-600">Incident ID</p>
+                <p className="text-sm font-medium text-muted-foreground">Incident ID</p>
                 <p className="font-mono text-sm">{incident.incident_id}</p>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-600">Incident Number</p>
+                <p className="text-sm font-medium text-muted-foreground">Incident Number</p>
                 <p className="font-mono text-sm">{incident.incident_number}</p>
               </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-sm font-medium text-gray-600">Priority</p>
-                <Badge className={getPriorityColor(incident.priority)}>
-                  {incident.priority}
-                </Badge>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-600">Status</p>
+                <p className="text-sm font-medium text-muted-foreground">Status</p>
                 <Badge className={getStatusColor(incident.status)}>
                   {incident.status}
                 </Badge>
               </div>
             </div>
-
-            {incident.jira_ticket_id && (
+            
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-sm font-medium text-gray-600">JIRA Ticket</p>
-                <p className="font-mono text-sm">{incident.jira_ticket_id}</p>
+                <p className="text-sm font-medium text-muted-foreground">Priority</p>
+                <Badge className={getPriorityColor(incident.priority)}>
+                  {incident.priority}
+                </Badge>
               </div>
-            )}
+              {incident.jira_ticket_id && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">JIRA Ticket</p>
+                  <p className="font-mono text-sm">{incident.jira_ticket_id}</p>
+                </div>
+              )}
+            </div>
 
             <div>
-              <p className="text-sm font-medium text-gray-600">Customer Notification</p>
+              <p className="text-sm font-medium text-muted-foreground">Customer Notification</p>
               <Badge variant={incident.customer_notification === 'confirmed_sent' ? 'default' : 'secondary'}>
                 {incident.customer_notification}
               </Badge>
@@ -163,200 +165,159 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
           </CardContent>
         </Card>
 
+        {/* SLA Information */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
               <Clock className="w-5 h-5" />
               SLA Information
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm font-medium text-gray-600">SLA Status</p>
-              <Badge className={getSLAStatusColor(incident.sla_status, incident.sla_remaining_seconds)}>
-                {incident.sla_status}
-              </Badge>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">SLA Status</p>
+                <Badge className={getSLAStatusColor(incident.sla_status, incident.sla_remaining_seconds)}>
+                  {incident.sla_status}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Resolution SLA</p>
+                <p className="text-sm">{incident.resolution_minutes} minutes</p>
+              </div>
             </div>
             
             <div className="grid grid-cols-1 gap-2">
               <div>
-                <p className="text-sm font-medium text-gray-600">SLA Target</p>
+                <p className="text-sm font-medium text-muted-foreground">SLA Target</p>
                 <p className="text-sm">{incident.sla_target_time ? formatDateTime(incident.sla_target_time) : 'Not set'}</p>
               </div>
               {incident.status === 'active' && incident.sla_target_time && (
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Time Remaining</p>
+                  <p className="text-sm font-medium text-muted-foreground">Time Remaining</p>
                   <p className={`text-lg font-semibold ${remainingTime === 'BREACHED' ? 'text-red-600' : 'text-green-600'}`}>
                     {remainingTime}
                   </p>
                 </div>
               )}
-              {incident.resolution_minutes && (
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Resolution SLA</p>
-                  <p className="text-sm">{incident.resolution_minutes} minutes</p>
-                </div>
-              )}
             </div>
 
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-sm font-medium text-gray-600">Created</p>
+                <p className="text-sm font-medium text-muted-foreground">Created</p>
                 <p className="text-sm">{formatDateTime(incident.creation_time)}</p>
               </div>
               {incident.closed_time && (
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Closed</p>
+                  <p className="text-sm font-medium text-muted-foreground">Closed</p>
                   <p className="text-sm">{formatDateTime(incident.closed_time)}</p>
                 </div>
               )}
             </div>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Assignment and Customer Info */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Assignment */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
               <User className="w-5 h-5" />
               Assignment
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             <div>
-              <p className="text-sm font-medium text-gray-600">Assigned Analyst</p>
-              <p className="text-sm">{incident.analyst_name || 'Unassigned'}</p>
+              <p className="text-sm font-medium text-muted-foreground">Assigned Analyst</p>
+              <p className="text-sm font-medium">{incident.analyst_name || 'Unassigned'}</p>
               {incident.analyst_code && (
-                <p className="text-xs text-gray-500">Code: {incident.analyst_code}</p>
+                <p className="text-xs text-muted-foreground">Code: {incident.analyst_code}</p>
               )}
               {incident.analyst_email && (
                 <div className="flex items-center gap-1 mt-1">
                   <Mail className="w-3 h-3" />
-                  <p className="text-xs text-gray-500">{incident.analyst_email}</p>
+                  <p className="text-xs text-muted-foreground">{incident.analyst_email}</p>
                 </div>
               )}
             </div>
           </CardContent>
         </Card>
 
+        {/* Customer Information */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
               <Building2 className="w-5 h-5" />
               Customer Information
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Customer</p>
-              <p className="text-sm">{incident.customer_name}</p>
-              <p className="text-xs text-gray-500 font-mono">{incident.workspace_name}</p>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Customer</p>
+                <p className="text-sm font-medium">{incident.customer_name}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Workspace</p>
+                <p className="text-xs text-muted-foreground font-mono">{incident.workspace_name}</p>
+              </div>
             </div>
             
             <div>
-              <p className="text-sm font-medium text-gray-600">Customer ID</p>
-              <p className="text-xs text-gray-500 font-mono">{incident.customer_id}</p>
+              <p className="text-sm font-medium text-muted-foreground">Customer ID</p>
+              <p className="text-xs text-muted-foreground font-mono">{incident.customer_id}</p>
             </div>
           </CardContent>
         </Card>
-      </div>
 
-      {/* System Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Database className="w-5 h-5" />
-            System Information
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Created At</p>
-              <p className="text-sm">{formatDateTime(incident.created_at)}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">Updated At</p>
-              <p className="text-sm">{formatDateTime(incident.updated_at)}</p>
-            </div>
-          </div>
-
-          {incident.incident_url && (
-            <div>
-              <p className="text-sm font-medium text-gray-600 mb-2">External Links</p>
-              <Button variant="outline" asChild>
+        {/* Azure Sentinel Button */}
+        {incident.incident_url && (
+          <Card>
+            <CardContent className="pt-6">
+              <Button className="w-full" asChild>
                 <a href={incident.incident_url} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="w-4 h-4 mr-2" />
                   View in Azure Sentinel
                 </a>
               </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        )}
 
-      {/* Detailed Information Tabs */}
-      <Card>
-        <CardContent className="p-6">
-          <Tabs defaultValue="logs" className="w-full">
-            <TabsList>
-              <TabsTrigger value="logs">Raw Logs</TabsTrigger>
-              <TabsTrigger value="timeline">Timeline</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="logs" className="mt-4">
-              <div className="space-y-4">
-                {incident.raw_logs ? (
-                  <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm overflow-x-auto max-h-96 overflow-y-auto">
-                    <pre className="whitespace-pre-wrap">{formatRawLogs(incident.raw_logs)}</pre>
-                  </div>
-                ) : (
-                  <div className="text-center text-gray-500 py-8">
-                    <FileText className="mx-auto h-12 w-12 mb-4" />
-                    <p>No raw logs available for this incident</p>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
+        {/* Recommendation Analysis */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Recommendation Analysis</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RichTextEditor
+              value={recommendationAnalysis}
+              onChange={setRecommendationAnalysis}
+              placeholder="Enter your recommendation analysis..."
+            />
+          </CardContent>
+        </Card>
+      </div>
 
-            <TabsContent value="timeline" className="mt-4">
-              <div className="space-y-4">
-                <div className="border-l-2 border-blue-200 pl-4 space-y-4">
-                  <div className="flex items-start space-x-3">
-                    <div className="w-3 h-3 bg-blue-500 rounded-full mt-1"></div>
-                    <div>
-                      <p className="text-sm font-medium">Incident Created</p>
-                      <p className="text-xs text-gray-500">{formatDateTime(incident.creation_time)}</p>
-                    </div>
-                  </div>
-                  
-                  {incident.analyst_name && (
-                    <div className="flex items-start space-x-3">
-                      <div className="w-3 h-3 bg-green-500 rounded-full mt-1"></div>
-                      <div>
-                        <p className="text-sm font-medium">Assigned to {incident.analyst_name}</p>
-                        <p className="text-xs text-gray-500">Analyst assignment</p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {incident.closed_time && (
-                    <div className="flex items-start space-x-3">
-                      <div className="w-3 h-3 bg-gray-500 rounded-full mt-1"></div>
-                      <div>
-                        <p className="text-sm font-medium">Incident Closed</p>
-                        <p className="text-xs text-gray-500">{formatDateTime(incident.closed_time)}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
+      {/* Right Column - Raw Logs */}
+      <div className="w-96">
+        <Card className="h-full">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Raw Logs</CardTitle>
+          </CardHeader>
+          <CardContent className="h-full">
+            {incident.raw_logs ? (
+              <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-xs overflow-auto h-full">
+                <pre className="whitespace-pre-wrap">{formatRawLogs(incident.raw_logs)}</pre>
               </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+            ) : (
+              <div className="text-center text-muted-foreground py-8">
+                <FileText className="mx-auto h-12 w-12 mb-4" />
+                <p>No raw logs available for this incident</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

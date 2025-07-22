@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useIncidents } from '@/hooks/useIncidents';
+import { useIncidentsRealtime } from '@/hooks/useIncidentsRealtime';
 import { AlertTriangle, Search, Filter, ExternalLink, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { usePagination } from '@/hooks/usePagination';
@@ -16,6 +17,9 @@ export function IncidentManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
+
+  // Enable realtime updates
+  useIncidentsRealtime();
 
   // Filter incidents based on search and filters
   const filteredIncidents = incidents?.filter(incident => {

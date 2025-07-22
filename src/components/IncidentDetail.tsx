@@ -1,10 +1,10 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useIncidentById } from '@/hooks/useIncidents';
-import { AlertTriangle, Clock, User, Building2, ExternalLink, Calendar, Target, FileText, AlertCircle } from 'lucide-react';
+import { AlertTriangle, Clock, User, Building2, ExternalLink, Calendar, Target, FileText, AlertCircle, Database, Mail } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface IncidentDetailProps {
@@ -13,6 +13,32 @@ interface IncidentDetailProps {
 
 export function IncidentDetail({ incidentId }: IncidentDetailProps) {
   const { data: incident, isLoading, error } = useIncidentById(incidentId);
+  const [remainingTime, setRemainingTime] = useState<string>('');
+
+  // Live countdown timer for SLA
+  useEffect(() => {
+    if (!incident || incident.status === 'closed' || !incident.sla_target_time) return;
+
+    const updateCountdown = () => {
+      const now = new Date().getTime();
+      const target = new Date(incident.sla_target_time).getTime();
+      const difference = target - now;
+
+      if (difference > 0) {
+        const hours = Math.floor(difference / (1000 * 60 * 60));
+        const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+        setRemainingTime(`${hours}h ${minutes}m ${seconds}s`);
+      } else {
+        setRemainingTime('BREACHED');
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+
+    return () => clearInterval(interval);
+  }, [incident]);
 
   if (isLoading) {
     return (
@@ -74,6 +100,15 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
     });
   };
 
+  const formatRawLogs = (rawLogs: string) => {
+    try {
+      const parsed = JSON.parse(rawLogs);
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      return rawLogs;
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header Information */}
@@ -118,6 +153,13 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                 <p className="font-mono text-sm">{incident.jira_ticket_id}</p>
               </div>
             )}
+
+            <div>
+              <p className="text-sm font-medium text-gray-600">Customer Notification</p>
+              <Badge variant={incident.customer_notification === 'confirmed_sent' ? 'default' : 'secondary'}>
+                {incident.customer_notification}
+              </Badge>
+            </div>
           </CardContent>
         </Card>
 
@@ -136,24 +178,32 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
               </Badge>
             </div>
             
-            {incident.status === 'active' && (
+            <div className="grid grid-cols-1 gap-2">
               <div>
-                <p className="text-sm font-medium text-gray-600">Time Remaining</p>
-                <p className="text-lg font-semibold">{incident.sla_remaining_formatted}</p>
+                <p className="text-sm font-medium text-gray-600">SLA Target</p>
+                <p className="text-sm">{incident.sla_target_time ? formatDateTime(incident.sla_target_time) : 'Not set'}</p>
               </div>
-            )}
+              {incident.status === 'active' && incident.sla_target_time && (
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Time Remaining</p>
+                  <p className={`text-lg font-semibold ${remainingTime === 'BREACHED' ? 'text-red-600' : 'text-green-600'}`}>
+                    {remainingTime}
+                  </p>
+                </div>
+              )}
+              {incident.resolution_minutes && (
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Resolution SLA</p>
+                  <p className="text-sm">{incident.resolution_minutes} minutes</p>
+                </div>
+              )}
+            </div>
 
             <div className="grid grid-cols-1 gap-2">
               <div>
                 <p className="text-sm font-medium text-gray-600">Created</p>
                 <p className="text-sm">{formatDateTime(incident.creation_time)}</p>
               </div>
-              {incident.sla_target_time && (
-                <div>
-                  <p className="text-sm font-medium text-gray-600">SLA Target</p>
-                  <p className="text-sm">{formatDateTime(incident.sla_target_time)}</p>
-                </div>
-              )}
               {incident.closed_time && (
                 <div>
                   <p className="text-sm font-medium text-gray-600">Closed</p>
@@ -181,6 +231,12 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
               {incident.analyst_code && (
                 <p className="text-xs text-gray-500">Code: {incident.analyst_code}</p>
               )}
+              {incident.analyst_email && (
+                <div className="flex items-center gap-1 mt-1">
+                  <Mail className="w-3 h-3" />
+                  <p className="text-xs text-gray-500">{incident.analyst_email}</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -200,51 +256,61 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
             </div>
             
             <div>
-              <p className="text-sm font-medium text-gray-600">Customer Notification</p>
-              <Badge variant={incident.customer_notification === 'confirmed_sent' ? 'default' : 'secondary'}>
-                {incident.customer_notification}
-              </Badge>
+              <p className="text-sm font-medium text-gray-600">Customer ID</p>
+              <p className="text-xs text-gray-500 font-mono">{incident.customer_id}</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
+      {/* System Information */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="w-5 h-5" />
+            System Information
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Created At</p>
+              <p className="text-sm">{formatDateTime(incident.created_at)}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-600">Updated At</p>
+              <p className="text-sm">{formatDateTime(incident.updated_at)}</p>
+            </div>
+          </div>
+
+          {incident.incident_url && (
+            <div>
+              <p className="text-sm font-medium text-gray-600 mb-2">External Links</p>
+              <Button variant="outline" asChild>
+                <a href={incident.incident_url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  View in Azure Sentinel
+                </a>
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Detailed Information Tabs */}
       <Card>
         <CardContent className="p-6">
-          <Tabs defaultValue="details" className="w-full">
+          <Tabs defaultValue="logs" className="w-full">
             <TabsList>
-              <TabsTrigger value="details">Details</TabsTrigger>
               <TabsTrigger value="logs">Raw Logs</TabsTrigger>
               <TabsTrigger value="timeline">Timeline</TabsTrigger>
             </TabsList>
             
-            <TabsContent value="details" className="mt-4">
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-medium mb-2">Resolution SLA</h4>
-                  <p className="text-sm text-gray-600">{incident.resolution_minutes} minutes</p>
-                </div>
-                
-                {incident.incident_url && (
-                  <div>
-                    <h4 className="font-medium mb-2">External Links</h4>
-                    <Button variant="outline" asChild>
-                      <a href={incident.incident_url} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="w-4 h-4 mr-2" />
-                        View in Azure Sentinel
-                      </a>
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-
             <TabsContent value="logs" className="mt-4">
               <div className="space-y-4">
                 {incident.raw_logs ? (
-                  <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-                    <pre className="whitespace-pre-wrap">{incident.raw_logs}</pre>
+                  <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm overflow-x-auto max-h-96 overflow-y-auto">
+                    <pre className="whitespace-pre-wrap">{formatRawLogs(incident.raw_logs)}</pre>
                   </div>
                 ) : (
                   <div className="text-center text-gray-500 py-8">

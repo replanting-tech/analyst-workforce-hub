@@ -6,10 +6,12 @@ export interface Incident {
   id: string;
   incident_id: string;
   incident_number: string;
+  customer_id: string;
   customer_name: string;
   workspace_name: string;
   analyst_code: string | null;
   analyst_name: string | null;
+  analyst_email: string | null;
   priority: string;
   creation_time: string;
   sla_target_time: string | null;

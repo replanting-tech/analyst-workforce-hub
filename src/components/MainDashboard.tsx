@@ -1,37 +1,36 @@
-
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from './AppSidebar';
-import { DashboardOverview } from './sections/DashboardOverview';
-import { IncidentManagement } from './sections/IncidentManagement';
-import { AnalystManagement } from './sections/AnalystManagement';
-import { ScheduleManagement } from './sections/ScheduleManagement';
-import { CustomerManagement } from './sections/CustomerManagement';
-import { RequestChanges } from './sections/RequestChanges';
-import { SLAConfiguration } from './sections/SLAConfiguration';
-import { WorkloadManagement } from './sections/WorkloadManagement';
-import { DarkModeToggle } from './DarkModeToggle';
+import { AppSidebar } from "./AppSidebar";
+import { DashboardOverview } from "./sections/DashboardOverview";
+import { IncidentManagement } from "./sections/IncidentManagement";
+import { AnalystManagement } from "./sections/AnalystManagement";
+import { ScheduleManagement } from "./sections/ScheduleManagement";
+import { CustomerManagement } from "./sections/CustomerManagement";
+import { RequestChanges } from "./sections/RequestChanges";
+import { SLAConfiguration } from "./sections/SLAConfiguration";
+import { WorkloadManagement } from "./sections/WorkloadManagement";
+import { DarkModeToggle } from "./DarkModeToggle";
 
 export function MainDashboard() {
-  const [activeSection, setActiveSection] = useState('overview');
+  const [activeSection, setActiveSection] = useState("overview");
 
   const renderContent = () => {
     switch (activeSection) {
-      case 'overview':
+      case "overview":
         return <DashboardOverview />;
-      case 'incidents':
+      case "incidents":
         return <IncidentManagement />;
-      case 'analysts':
+      case "analysts":
         return <AnalystManagement />;
-      case 'schedule':
+      case "schedule":
         return <ScheduleManagement />;
-      case 'customers':
+      case "customers":
         return <CustomerManagement />;
-      case 'requests':
+      case "requests":
         return <RequestChanges />;
-      case 'sla':
+      case "sla":
         return <SLAConfiguration />;
-      case 'workload':
+      case "workload":
         return <WorkloadManagement />;
       default:
         return <DashboardOverview />;
@@ -40,26 +39,33 @@ export function MainDashboard() {
 
   const getSectionTitle = () => {
     const sectionTitles = {
-      'overview': 'Dashboard Overview',
-      'incidents': 'Incident Management',
-      'analysts': 'Analyst Management',
-      'schedule': 'Schedule Management',
-      'customers': 'Customer Management',
-      'requests': 'Request Changes',
-      'sla': 'SLA Configuration',
-      'workload': 'Workload Management'
+      overview: "Dashboard Overview",
+      incidents: "Incident Management",
+      analysts: "Analyst Management",
+      schedule: "Schedule Management",
+      customers: "Customer Management",
+      requests: "Request Changes",
+      sla: "SLA Configuration",
+      workload: "Workload Management",
     };
-    return sectionTitles[activeSection as keyof typeof sectionTitles] || 'Dashboard';
+    return (
+      sectionTitles[activeSection as keyof typeof sectionTitles] || "Dashboard"
+    );
   };
 
   return (
     <div className="flex min-h-screen w-full">
-      <AppSidebar activeSection={activeSection} onSectionChange={setActiveSection} />
+      <AppSidebar
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
+      />
       <div className="flex-1 flex flex-col w-full">
         <header className="bg-background border-b border-border px-6 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <SidebarTrigger />
-            <h1 className="text-2xl font-bold text-foreground">{getSectionTitle()}</h1>
+            <h1 className="text-2xl font-bold text-foreground">
+              {getSectionTitle()}
+            </h1>
           </div>
           <div className="flex items-center space-x-4">
             <DarkModeToggle />

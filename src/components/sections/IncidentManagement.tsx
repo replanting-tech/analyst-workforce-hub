@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,18 +12,113 @@ import { AlertTriangle, Search, Filter, ExternalLink, Clock } from 'lucide-react
 import { Link } from 'react-router-dom';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationComponent } from '@/components/PaginationComponent';
+import { Incident } from '@/hooks/useIncidents';
+
+interface IncidentWithCountdown extends Incident {
+  liveCountdown: string;
+  isNearBreach: boolean;
+  priorityWeight: number;
+}
 
 export function IncidentManagement() {
   const { data: incidents, isLoading, error } = useIncidents();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
+  const [processedIncidents, setProcessedIncidents] = useState<IncidentWithCountdown[]>([]);
 
   // Enable realtime updates
   useIncidentsRealtime();
 
+  // Priority weights for sorting (higher = higher priority)
+  const getPriorityWeight = (priority: string): number => {
+    switch (priority) {
+      case 'Very High': return 5;
+      case 'High': return 4;
+      case 'Medium': return 3;
+      case 'Low': return 2;
+      case 'Informational': return 1;
+      default: return 0;
+    }
+  };
+
+  // Calculate live countdown and process incidents
+  useEffect(() => {
+    if (!incidents) return;
+
+    const updateCountdowns = () => {
+      const now = new Date().getTime();
+      
+      const processed: IncidentWithCountdown[] = incidents.map(incident => {
+        let liveCountdown = '';
+        let isNearBreach = false;
+
+        if (incident.status === 'active' && incident.sla_target_time) {
+          const target = new Date(incident.sla_target_time).getTime();
+          const difference = target - now;
+
+          if (difference > 0) {
+            const hours = Math.floor(difference / (1000 * 60 * 60));
+            const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+            liveCountdown = `${hours}h ${minutes}m ${seconds}s`;
+            
+            // Mark as near breach if less than 15 minutes remaining
+            isNearBreach = difference <= 900000; // 15 minutes in milliseconds
+          } else {
+            liveCountdown = 'BREACHED';
+            isNearBreach = true;
+          }
+        } else if (incident.status === 'closed') {
+          liveCountdown = 'Closed';
+        } else {
+          liveCountdown = 'N/A';
+        }
+
+        return {
+          ...incident,
+          liveCountdown,
+          isNearBreach,
+          priorityWeight: getPriorityWeight(incident.priority)
+        };
+      });
+
+      // Sort incidents: breached first, then by time remaining (ascending), then by priority (descending)
+      processed.sort((a, b) => {
+        // First, prioritize active incidents
+        if (a.status === 'active' && b.status !== 'active') return -1;
+        if (a.status !== 'active' && b.status === 'active') return 1;
+
+        // For active incidents, sort by SLA status and remaining time
+        if (a.status === 'active' && b.status === 'active') {
+          // Breached incidents first
+          if (a.sla_status === 'breach' && b.sla_status !== 'breach') return -1;
+          if (a.sla_status !== 'breach' && b.sla_status === 'breach') return 1;
+
+          // If both breached or both not breached, sort by remaining seconds
+          if (a.sla_remaining_seconds !== b.sla_remaining_seconds) {
+            return a.sla_remaining_seconds - b.sla_remaining_seconds;
+          }
+
+          // If same remaining time, sort by priority
+          return b.priorityWeight - a.priorityWeight;
+        }
+
+        // For closed incidents, sort by creation time (newest first)
+        return new Date(b.creation_time).getTime() - new Date(a.creation_time).getTime();
+      });
+
+      setProcessedIncidents(processed);
+    };
+
+    updateCountdowns();
+    const interval = setInterval(updateCountdowns, 1000);
+
+    return () => clearInterval(interval);
+  }, [incidents]);
+
   // Filter incidents based on search and filters
-  const filteredIncidents = incidents?.filter(incident => {
+  const filteredIncidents = processedIncidents.filter(incident => {
     const matchesSearch = incident.incident_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          incident.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          incident.analyst_name?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -31,7 +127,7 @@ export function IncidentManagement() {
     const matchesPriority = priorityFilter === 'all' || incident.priority === priorityFilter;
     
     return matchesSearch && matchesStatus && matchesPriority;
-  }) || [];
+  });
 
   const {
     currentPage,
@@ -59,11 +155,18 @@ export function IncidentManagement() {
     }
   };
 
-  const getSLAStatusColor = (slaStatus: string, remainingSeconds: number) => {
-    if (slaStatus === 'breach') return 'bg-red-100 text-red-800';
+  const getSLAStatusColor = (slaStatus: string, remainingSeconds: number, liveCountdown: string) => {
+    if (slaStatus === 'breach' || liveCountdown === 'BREACHED') return 'bg-red-100 text-red-800';
     if (remainingSeconds <= 900 && remainingSeconds > 0) return 'bg-orange-100 text-orange-800';
     if (slaStatus === 'met') return 'bg-green-100 text-green-800';
     return 'bg-blue-100 text-blue-800';
+  };
+
+  const getCountdownColor = (liveCountdown: string, isNearBreach: boolean, status: string) => {
+    if (status !== 'active') return 'text-muted-foreground';
+    if (liveCountdown === 'BREACHED') return 'text-red-600 font-bold';
+    if (isNearBreach) return 'text-orange-600 font-semibold';
+    return 'text-green-600';
   };
 
   const formatDateTime = (dateString: string) => {
@@ -186,7 +289,7 @@ export function IncidentManagement() {
               </TableHeader>
               <TableBody>
                 {paginatedIncidents.map((incident) => (
-                  <TableRow key={incident.incident_id}>
+                  <TableRow key={incident.incident_id} className={incident.isNearBreach && incident.status === 'active' ? 'bg-red-50' : ''}>
                     <TableCell className="font-mono text-sm">
                       {incident.incident_number}
                     </TableCell>
@@ -218,15 +321,13 @@ export function IncidentManagement() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-2">
-                        <Badge className={getSLAStatusColor(incident.sla_status, incident.sla_remaining_seconds)}>
-                          {incident.sla_status}
+                        <Badge className={getSLAStatusColor(incident.sla_status, incident.sla_remaining_seconds, incident.liveCountdown)}>
+                          {incident.liveCountdown === 'BREACHED' ? 'breach' : incident.sla_status}
                         </Badge>
-                        {incident.status === 'active' && (
-                          <div className="flex items-center text-xs text-muted-foreground">
-                            <Clock className="w-3 h-3 mr-1" />
-                            {incident.sla_remaining_formatted}
-                          </div>
-                        )}
+                        <div className={`flex items-center text-xs ${getCountdownColor(incident.liveCountdown, incident.isNearBreach, incident.status)}`}>
+                          <Clock className="w-3 h-3 mr-1" />
+                          {incident.liveCountdown}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell className="text-sm">

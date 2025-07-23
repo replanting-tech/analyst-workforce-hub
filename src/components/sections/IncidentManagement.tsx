@@ -8,11 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useIncidents } from '@/hooks/useIncidents';
 import { useIncidentsRealtime } from '@/hooks/useIncidentsRealtime';
-import { AlertTriangle, Search, Filter, ExternalLink, Clock } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { AlertTriangle, Search, Filter, ExternalLink, Clock, Bell } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationComponent } from '@/components/PaginationComponent';
 import { Incident } from '@/hooks/useIncidents';
+import { useToast } from '@/hooks/use-toast';
 
 interface IncidentWithCountdown extends Incident {
   liveCountdown: string;
@@ -22,13 +23,78 @@ interface IncidentWithCountdown extends Incident {
 
 export function IncidentManagement() {
   const { data: incidents, isLoading, error } = useIncidents();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
+  const [slaStatusFilter, setSlaStatusFilter] = useState('ongoing'); // Default to ongoing
   const [processedIncidents, setProcessedIncidents] = useState<IncidentWithCountdown[]>([]);
 
-  // Enable realtime updates
-  useIncidentsRealtime();
+  // Enable realtime updates with custom notification handler
+  useEffect(() => {
+    const channel = supabase
+      .channel('incidents-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'incidents'
+        },
+        (payload) => {
+          console.log('New incident inserted:', payload);
+          const incidentNumber = payload.new?.incident_number || 'Unknown';
+          toast({
+            title: "New Incident",
+            description: `${incidentNumber} has been created`,
+            action: (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigate(`/incident/${payload.new?.incident_id}`)}
+              >
+                <Bell className="w-4 h-4 mr-1" />
+                View Details
+              </Button>
+            ),
+            duration: 10000,
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'incidents'
+        },
+        (payload) => {
+          console.log('Incident updated:', payload);
+          const incidentNumber = payload.new?.incident_number || 'Unknown';
+          toast({
+            title: "Incident Updated",
+            description: `${incidentNumber} has been updated`,
+            action: (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigate(`/incident/${payload.new?.incident_id}`)}
+              >
+                <Bell className="w-4 h-4 mr-1" />
+                View Details
+              </Button>
+            ),
+            duration: 10000,
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [navigate, toast]);
 
   // Priority weights for sorting (higher = higher priority)
   const getPriorityWeight = (priority: string): number => {
@@ -125,8 +191,9 @@ export function IncidentManagement() {
     
     const matchesStatus = statusFilter === 'all' || incident.status === statusFilter;
     const matchesPriority = priorityFilter === 'all' || incident.priority === priorityFilter;
+    const matchesSlaStatus = slaStatusFilter === 'all' || incident.sla_status === slaStatusFilter;
     
-    return matchesSearch && matchesStatus && matchesPriority;
+    return matchesSearch && matchesStatus && matchesPriority && matchesSlaStatus;
   });
 
   const {
@@ -249,6 +316,17 @@ export function IncidentManagement() {
                 <SelectItem value="closed">Closed</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={slaStatusFilter} onValueChange={setSlaStatusFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by SLA status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All SLA Status</SelectItem>
+                <SelectItem value="ongoing">Ongoing</SelectItem>
+                <SelectItem value="breach">Breach</SelectItem>
+                <SelectItem value="met">Met</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={priorityFilter} onValueChange={setPriorityFilter}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filter by priority" />
@@ -269,7 +347,7 @@ export function IncidentManagement() {
       {/* Incidents Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Active Incidents</CardTitle>
+          <CardTitle>Incidents</CardTitle>
           <CardDescription>Real-time incident tracking and management</CardDescription>
         </CardHeader>
         <CardContent>

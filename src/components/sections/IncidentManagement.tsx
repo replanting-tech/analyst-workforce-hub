@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useIncidents } from '@/hooks/useIncidents';
 import { supabase } from '@/integrations/supabase/client';
-import { AlertTriangle, Search, Filter, ExternalLink, Clock, Bell } from 'lucide-react';
+import { AlertTriangle, Search, Filter, ExternalLink, Clock, Bell, AlertCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationComponent } from '@/components/PaginationComponent';
@@ -21,6 +20,12 @@ interface IncidentWithCountdown extends Incident {
   priorityWeight: number;
 }
 
+interface SLABreachStats {
+  threeMinutes: number;
+  twoMinutes: number;
+  oneMinute: number;
+}
+
 export function IncidentManagement() {
   const { data: incidents, isLoading, error } = useIncidents();
   const navigate = useNavigate();
@@ -28,8 +33,14 @@ export function IncidentManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
-  const [slaStatusFilter, setSlaStatusFilter] = useState('ongoing'); // Default to ongoing
+  const [slaStatusFilter, setSlaStatusFilter] = useState('ongoing');
   const [processedIncidents, setProcessedIncidents] = useState<IncidentWithCountdown[]>([]);
+  const [slaBreachStats, setSlaBreachStats] = useState<SLABreachStats>({
+    threeMinutes: 0,
+    twoMinutes: 0,
+    oneMinute: 0
+  });
+  const [sendingAlert, setSendingAlert] = useState(false);
 
   // Enable realtime updates with custom notification handler
   useEffect(() => {
@@ -114,6 +125,9 @@ export function IncidentManagement() {
 
     const updateCountdowns = () => {
       const now = new Date().getTime();
+      let threeMinCount = 0;
+      let twoMinCount = 0;
+      let oneMinCount = 0;
       
       const processed: IncidentWithCountdown[] = incidents.map(incident => {
         let liveCountdown = '';
@@ -128,6 +142,11 @@ export function IncidentManagement() {
             const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
             const seconds = Math.floor((difference % (1000 * 60)) / 1000);
             liveCountdown = `${hours}h ${minutes}m ${seconds}s`;
+            
+            // Count incidents for SLA breach warnings
+            if (difference <= 180000) threeMinCount++; // 3 minutes
+            if (difference <= 120000) twoMinCount++; // 2 minutes  
+            if (difference <= 60000) oneMinCount++; // 1 minute
             
             // Mark as near breach if less than 15 minutes remaining
             isNearBreach = difference <= 900000; // 15 minutes in milliseconds
@@ -147,6 +166,13 @@ export function IncidentManagement() {
           isNearBreach,
           priorityWeight: getPriorityWeight(incident.priority)
         };
+      });
+
+      // Update SLA breach stats
+      setSlaBreachStats({
+        threeMinutes: threeMinCount,
+        twoMinutes: twoMinCount,
+        oneMinute: oneMinCount
       });
 
       // Sort incidents: breached first, then by time remaining (ascending), then by priority (descending)
@@ -182,6 +208,39 @@ export function IncidentManagement() {
 
     return () => clearInterval(interval);
   }, [incidents]);
+
+  // Send SLA alert
+  const sendSLAAlert = async () => {
+    setSendingAlert(true);
+    try {
+      const { error } = await supabase.functions.invoke('send-alert-3-minutes-sla', {
+        body: { name: 'SLA Alert System' }
+      });
+
+      if (error) {
+        console.error('Error sending SLA alert:', error);
+        toast({
+          title: "Error",
+          description: "Failed to send SLA alert",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "SLA alert sent successfully",
+        });
+      }
+    } catch (error) {
+      console.error('Error sending SLA alert:', error);
+      toast({
+        title: "Error",
+        description: "Failed to send SLA alert",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingAlert(false);
+    }
+  };
 
   // Filter incidents based on search and filters
   const filteredIncidents = processedIncidents.filter(incident => {
@@ -284,6 +343,64 @@ export function IncidentManagement() {
           </Badge>
         </div>
       </div>
+
+      {/* SLA Breach Warning Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-orange-600" />
+            SLA Breach Warnings
+          </CardTitle>
+          <CardDescription>
+            Monitor incidents approaching SLA breach and send alerts to analysts
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+              <div>
+                <p className="text-sm font-medium text-yellow-800">≤ 3 Minutes</p>
+                <p className="text-2xl font-bold text-yellow-900">{slaBreachStats.threeMinutes}</p>
+              </div>
+              <Clock className="w-8 h-8 text-yellow-600" />
+            </div>
+            <div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg border border-orange-200">
+              <div>
+                <p className="text-sm font-medium text-orange-800">≤ 2 Minutes</p>
+                <p className="text-2xl font-bold text-orange-900">{slaBreachStats.twoMinutes}</p>
+              </div>
+              <Clock className="w-8 h-8 text-orange-600" />
+            </div>
+            <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200">
+              <div>
+                <p className="text-sm font-medium text-red-800">≤ 1 Minute</p>
+                <p className="text-2xl font-bold text-red-900">{slaBreachStats.oneMinute}</p>
+              </div>
+              <Clock className="w-8 h-8 text-red-600" />
+            </div>
+            <div className="flex items-center justify-center">
+              <Button 
+                onClick={sendSLAAlert}
+                disabled={sendingAlert}
+                className="w-full"
+                variant={slaBreachStats.threeMinutes > 0 ? "destructive" : "outline"}
+              >
+                {sendingAlert ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Bell className="w-4 h-4 mr-2" />
+                    Send SLA Alert
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Search and Filters */}
       <Card>

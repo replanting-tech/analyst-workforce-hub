@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useIncidents } from '@/hooks/useIncidents';
-import { useIncidentsRealtime } from '@/hooks/useIncidentsRealtime';
+import { supabase } from '@/integrations/supabase/client';
 import { AlertTriangle, Search, Filter, ExternalLink, Clock, Bell } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { usePagination } from '@/hooks/usePagination';

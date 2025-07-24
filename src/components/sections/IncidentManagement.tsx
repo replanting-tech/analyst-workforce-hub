@@ -18,6 +18,7 @@ interface IncidentWithCountdown extends Incident {
   liveCountdown: string;
   isNearBreach: boolean;
   priorityWeight: number;
+  shouldShowSLAAlert: boolean;
 }
 
 interface SLABreachStats {
@@ -40,7 +41,7 @@ export function IncidentManagement() {
     twoMinutes: 0,
     oneMinute: 0
   });
-  const [sendingAlert, setSendingAlert] = useState(false);
+  const [sendingAlerts, setSendingAlerts] = useState<Set<string>>(new Set());
 
   // Enable realtime updates with custom notification handler
   useEffect(() => {
@@ -132,6 +133,7 @@ export function IncidentManagement() {
       const processed: IncidentWithCountdown[] = incidents.map(incident => {
         let liveCountdown = '';
         let isNearBreach = false;
+        let shouldShowSLAAlert = false;
 
         if (incident.status === 'active' && incident.sla_target_time) {
           const target = new Date(incident.sla_target_time).getTime();
@@ -148,11 +150,15 @@ export function IncidentManagement() {
             if (difference <= 120000) twoMinCount++; // 2 minutes  
             if (difference <= 60000) oneMinCount++; // 1 minute
             
+            // Show SLA alert button if within 3 minutes
+            shouldShowSLAAlert = difference <= 180000; // 3 minutes
+            
             // Mark as near breach if less than 15 minutes remaining
             isNearBreach = difference <= 900000; // 15 minutes in milliseconds
           } else {
             liveCountdown = 'BREACHED';
             isNearBreach = true;
+            shouldShowSLAAlert = true; // Show alert button for breached incidents too
           }
         } else if (incident.status === 'closed') {
           liveCountdown = 'Closed';
@@ -164,6 +170,7 @@ export function IncidentManagement() {
           ...incident,
           liveCountdown,
           isNearBreach,
+          shouldShowSLAAlert,
           priorityWeight: getPriorityWeight(incident.priority)
         };
       });
@@ -209,9 +216,49 @@ export function IncidentManagement() {
     return () => clearInterval(interval);
   }, [incidents]);
 
-  // Send SLA alert
+  // Send SLA alert for specific incident
+  const sendSLAAlertForIncident = async (incidentId: string) => {
+    setSendingAlerts(prev => new Set(prev).add(incidentId));
+    
+    try {
+      const { error } = await supabase.functions.invoke('send-alert-3-minutes-sla', {
+        body: { 
+          name: 'SLA Alert System',
+          incident_id: incidentId
+        }
+      });
+
+      if (error) {
+        console.error('Error sending SLA alert:', error);
+        toast({
+          title: "Error",
+          description: "Failed to send SLA alert",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "SLA alert sent successfully",
+        });
+      }
+    } catch (error) {
+      console.error('Error sending SLA alert:', error);
+      toast({
+        title: "Error",
+        description: "Failed to send SLA alert",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingAlerts(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(incidentId);
+        return newSet;
+      });
+    }
+  };
+
+  // Send SLA alert for all incidents
   const sendSLAAlert = async () => {
-    setSendingAlert(true);
     try {
       const { error } = await supabase.functions.invoke('send-alert-3-minutes-sla', {
         body: { name: 'SLA Alert System' }
@@ -237,8 +284,6 @@ export function IncidentManagement() {
         description: "Failed to send SLA alert",
         variant: "destructive",
       });
-    } finally {
-      setSendingAlert(false);
     }
   };
 
@@ -381,21 +426,11 @@ export function IncidentManagement() {
             <div className="flex items-center justify-center">
               <Button 
                 onClick={sendSLAAlert}
-                disabled={sendingAlert}
                 className="w-full"
                 variant={slaBreachStats.threeMinutes > 0 ? "destructive" : "outline"}
               >
-                {sendingAlert ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Bell className="w-4 h-4 mr-2" />
-                    Send SLA Alert
-                  </>
-                )}
+                <Bell className="w-4 h-4 mr-2" />
+                Send Bulk SLA Alert
               </Button>
             </div>
           </div>
@@ -535,6 +570,20 @@ export function IncidentManagement() {
                             View Details
                           </Link>
                         </Button>
+                        {incident.shouldShowSLAAlert && (
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            onClick={() => sendSLAAlertForIncident(incident.incident_id)}
+                            disabled={sendingAlerts.has(incident.incident_id)}
+                          >
+                            {sendingAlerts.has(incident.incident_id) ? (
+                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white" />
+                            ) : (
+                              <Bell className="w-3 h-3" />
+                            )}
+                          </Button>
+                        )}
                         {incident.incident_url && (
                           <Button variant="ghost" size="sm" asChild>
                             <a href={incident.incident_url} target="_blank" rel="noopener noreferrer">

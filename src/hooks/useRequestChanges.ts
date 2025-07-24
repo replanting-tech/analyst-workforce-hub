@@ -62,15 +62,29 @@ export const useRequestChanges = () => {
           if (indicatorsError) {
             console.error('Error fetching indicators:', indicatorsError);
             return {
-              ...request,
+              id: request.id.toString(),
+              incident_number: request.incident_number,
+              jira_ticket_id: request.jira_ticket_id,
+              analyst_id: request.analyst_id,
               analyst_name: request.analysts.name,
+              assets: request.assets,
+              status: request.status,
+              created_at: request.created_at,
+              updated_at: request.updated_at,
               indicators: []
             };
           }
 
           return {
-            ...request,
+            id: request.id.toString(),
+            incident_number: request.incident_number,
+            jira_ticket_id: request.jira_ticket_id,
+            analyst_id: request.analyst_id,
             analyst_name: request.analysts.name,
+            assets: request.assets,
+            status: request.status,
+            created_at: request.created_at,
+            updated_at: request.updated_at,
             indicators: indicators.map(indicator => ({
               id: indicator.id.toString(),
               type: indicator.type,
@@ -83,7 +97,7 @@ export const useRequestChanges = () => {
         })
       );
 
-      return requestChangesWithIndicators as RequestChange[];
+      return requestChangesWithIndicators;
     },
   });
 };

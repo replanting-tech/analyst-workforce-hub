@@ -10,6 +10,7 @@ import { CustomerManagement } from './sections/CustomerManagement';
 import { RequestChanges } from './sections/RequestChanges';
 import { SLAConfiguration } from './sections/SLAConfiguration';
 import { WorkloadManagement } from './sections/WorkloadManagement';
+import { ReportPage } from './sections/ReportPage';
 import { DarkModeToggle } from './DarkModeToggle';
 
 export function MainDashboard() {
@@ -33,6 +34,8 @@ export function MainDashboard() {
         return <SLAConfiguration />;
       case 'workload':
         return <WorkloadManagement />;
+      case 'reports':
+        return <ReportPage />;
       default:
         return <DashboardOverview />;
     }
@@ -47,7 +50,8 @@ export function MainDashboard() {
       'customers': 'Customer Management',
       'requests': 'Request Changes',
       'sla': 'SLA Configuration',
-      'workload': 'Workload Management'
+      'workload': 'Workload Management',
+      'reports': 'Reports & Analytics'
     };
     return sectionTitles[activeSection as keyof typeof sectionTitles] || 'Dashboard';
   };

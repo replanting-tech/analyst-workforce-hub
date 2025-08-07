@@ -181,7 +181,8 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
                   <p className="text-xs text-gray-500">This Month</p>
                 </div>
               </div>
-            </Card>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardContent className="p-6">
@@ -195,7 +196,8 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
                   <p className="text-xs text-gray-500">Awaiting Response</p>
                 </div>
               </div>
-            </Card>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardContent className="p-6">
@@ -209,7 +211,8 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
                   <Progress value={ticketStats.compliance} className="mt-2 w-20" />
                 </div>
               </div>
-            </Card>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Charts Section */}

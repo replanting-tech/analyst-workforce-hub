@@ -10,6 +10,8 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import IncidentDetailPage from "./pages/IncidentDetail";
 import Auth from "./pages/Auth";
+import CustomerPortal from "./pages/CustomerPortal";
+import Report from "./pages/Report";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +30,12 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               <Route path="/auth" element={<Auth />} />
+              <Route path="/portal/customer" element={<CustomerPortal />} />
+              <Route path="/report" element={
+                <ProtectedRoute>
+                  <Report />
+                </ProtectedRoute>
+              } />
               <Route path="/" element={
                 <ProtectedRoute>
                   <Index />

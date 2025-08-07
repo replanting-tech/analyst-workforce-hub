@@ -1,632 +1,331 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
+import { useIncidentById } from '@/hooks/useIncidents';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Copy, Download, ExternalLink, Mail } from 'lucide-react';
+import { format } from 'date-fns';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { useToast } from "@/components/ui/use-toast"
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { useIncidentById } from "@/hooks/useIncidents";
-import {
-  AlertTriangle,
-  Clock,
-  User,
-  Building2,
-  ExternalLink,
-  Calendar,
-  Target,
-  FileText,
-  AlertCircle,
-  Database,
-  Mail,
-  Send,
-  Upload,
-  ChevronRight,
-} from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import RichTextEditor from "./RichTextEditor";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 interface IncidentDetailProps {
   incidentId: string;
 }
 
-export function IncidentDetail({ incidentId }: IncidentDetailProps) {
-  const { data: incident, isLoading, error } = useIncidentById(incidentId);
-  const [remainingTime, setRemainingTime] = useState<string>("");
-  const [recommendationAnalysis, setRecommendationAnalysis] =
-    useState<string>("");
-  const [currentStatus, setCurrentStatus] = useState<string>("");
+const IncidentDetail: React.FC<IncidentDetailProps> = ({ incidentId }) => {
+  const { data: incident, isLoading, isError } = useIncidentById(incidentId);
+  const { toast } = useToast()
+  const [isCopied, setIsCopied] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [recommendation, setRecommendation] = useState('');
 
-  async function sendEmail() {
-    if (!incident) return;
-
-    const payload = {
-      incidentId: incident.id,
-      customerName: incident.customer_name,
-      customerEmail: "harrysunaryo03@gmail.com", // fallback handled by backend
-      incidentNumber: incident.incident_number,
-      priority: incident.priority,
-      analystName: incident.analyst_name,
-      recommendation: recommendationAnalysis || undefined,
-    };
-
-    try {
-      const response = await fetch(
-        "https://xmozpbewjkeisvpfzeca.supabase.co/functions/v1/send-notification-email",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhtb3pwYmV3amtlaXN2cGZ6ZWNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyMDM3MDMsImV4cCI6MjA2Nzc3OTcwM30.goD6H9fLQPljKpifLlLIU6_Oo4jJO7b2-8GlkeqkiKA`, // preferably use env var
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        console.error("Failed to send email:", result.error);
-        alert("Failed to send email.");
-      } else {
-        console.log("Email sent successfully:", result);
-        alert("Email sent!");
-      }
-    } catch (err) {
-      console.error("Unexpected error:", err);
-      alert("An unexpected error occurred.");
-    }
-  }
-
-  // Function to update incident status
-  async function updateStatus(newStatus: string) {
-    if (!incident) return;
-
-    try {
-      // Here you would typically make an API call to update the status
-      // For now, we'll just update the local state
-      setCurrentStatus(newStatus);
-      alert(`Status updated to: ${newStatus}`);
-
-      // In a real implementation, you would call your API here
-      // const response = await fetch(`your-api-endpoint/${incident.id}`, {
-      //   method: 'PATCH',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ status: newStatus }),
-      // });
-
-      // if (!response.ok) {
-      //   throw new Error('Failed to update status');
-      // }
-    } catch (err) {
-      console.error("Error updating status:", err);
-      alert("Failed to update status. Please try again.");
-    }
-  }
-
-  // Function to submit request change to OpenTaxii
-  async function submitRequestChange() {
-    if (!incident) return;
-
-    try {
-      const payload = {
-        p_incident_id: incident.incident_number,
-        p_analyst_name: incident.analyst_name || "Unassigned",
-        p_jira_ticket_id: "TEST-123",
-        p_assets: "test",
-      };
-
-      const response = await fetch(
-        "https://xmozpbewjkeisvpfzeca.supabase.co/rest/v1/rpc/create_request_change",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey:
-              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhtb3pwYmV3amtlaXN2cGZ6ZWNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyMDM3MDMsImV4cCI6MjA2Nzc3OTcwM30.goD6H9fLQPljKpifLlLIU6_Oo4jJO7b2-8GlkeqkiKA",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          `Failed to submit request: ${
-            errorData.message || response.statusText
-          }`
-        );
-      }
-
-      alert("Change request submitted successfully!");
-      // Close the dialog
-      document
-        .querySelector('[data-state="open"] button[aria-label="Close"]')
-        ?.click();
-    } catch (err) {
-      console.error("Error submitting request change:", err);
-      alert(
-        `Failed to submit request change: ${
-          err instanceof Error ? err.message : "Unknown error"
-        }`
-      );
-    }
-  }
-
-  // Live countdown timer for SLA
   useEffect(() => {
-    if (!incident || incident.status === "closed" || !incident.sla_target_time)
-      return;
-
-    const updateCountdown = () => {
-      const now = new Date().getTime();
-      const target = new Date(incident.sla_target_time).getTime();
-      const difference = target - now;
-
-      if (difference > 0) {
-        const hours = Math.floor(difference / (1000 * 60 * 60));
-        const minutes = Math.floor(
-          (difference % (1000 * 60 * 60)) / (1000 * 60)
-        );
-        const seconds = Math.floor((difference % (1000 * 60)) / 1000);
-        setRemainingTime(`${hours}h ${minutes}m ${seconds}s`);
-      } else {
-        setRemainingTime("BREACHED");
-      }
-    };
-
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
-
-    return () => clearInterval(interval);
-  }, [incident]);
-
-  // Set initial status when incident data is loaded
-  useEffect(() => {
-    if (incident) {
-      setCurrentStatus(incident.status);
+    if (isCopied) {
+      const timer = setTimeout(() => setIsCopied(false), 3000);
+      return () => clearTimeout(timer);
     }
-  }, [incident]);
+  }, [isCopied]);
 
   if (isLoading) {
-    return (
-      <div className="animate-pulse space-y-4">
-        <div className="h-8 bg-gray-200 rounded w-3/4"></div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="h-24 bg-gray-200 rounded"></div>
-          <div className="h-24 bg-gray-200 rounded"></div>
-        </div>
-        <div className="h-48 bg-gray-200 rounded"></div>
-      </div>
-    );
+    return <div>Loading incident details...</div>;
   }
 
-  if (error || !incident) {
-    return (
-      <div className="text-center text-red-600">
-        <AlertTriangle className="mx-auto h-12 w-12 mb-4" />
-        <h3 className="text-lg font-medium">Error loading incident details</h3>
-        <p className="text-sm">Incident not found or failed to load</p>
-      </div>
-    );
+  if (isError || !incident) {
+    return <div>Error loading incident details.</div>;
   }
+
+  const handleCopyLogs = () => {
+    if (incident?.raw_logs) {
+      navigator.clipboard.writeText(incident.raw_logs);
+      setIsCopied(true);
+      toast({
+        title: "Copied!",
+        description: "Raw logs copied to clipboard.",
+      })
+    }
+  };
+
+  const handleExportLogs = () => {
+    if (!incident?.raw_logs) return;
+    
+    const element = document.createElement('a');
+    const file = new Blob([incident.raw_logs], { type: 'text/plain' });
+    element.href = URL.createObjectURL(file);
+    element.download = `incident-${incident.incident_number}-logs.txt`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case "Very High":
-        return "bg-red-100 text-red-800 border-red-200";
-      case "High":
-        return "bg-orange-100 text-orange-800 border-orange-200";
-      case "Medium":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200";
-      case "Low":
-        return "bg-blue-100 text-blue-800 border-blue-200";
-      case "Informational":
-        return "bg-gray-100 text-gray-800 border-gray-200";
+      case 'High':
+      case 'Very High':
+        return 'bg-red-500 text-white';
+      case 'Medium':
+        return 'bg-yellow-500 text-black';
+      case 'Low':
+        return 'bg-green-500 text-white';
       default:
-        return "bg-gray-100 text-gray-800 border-gray-200";
+        return 'bg-gray-500 text-white';
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return "bg-green-100 text-green-800 hover:bg-green-200";
-      case "closed":
-        return "bg-gray-100 text-gray-800 hover:bg-gray-200";
-      case "escalated":
-        return "bg-red-100 text-red-800 hover:bg-red-200";
-      case "need review":
-        return "bg-yellow-100 text-yellow-800 hover:bg-yellow-200";
-      default:
-        return "bg-gray-100 text-gray-800 hover:bg-gray-200";
-    }
-  };
-
-  const getSLAStatusColor = (slaStatus: string, remainingSeconds: number) => {
-    if (slaStatus === "breach") return "bg-red-100 text-red-800";
-    if (remainingSeconds <= 900 && remainingSeconds > 0)
-      return "bg-orange-100 text-orange-800";
-    if (slaStatus === "met") return "bg-green-100 text-green-800";
-    return "bg-blue-100 text-blue-800";
-  };
-
-  const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString("id-ID", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  };
-
-  const formatRawLogs = (rawLogs: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A';
     try {
-      const parsed = JSON.parse(rawLogs);
-      return JSON.stringify(parsed, null, 2);
-    } catch {
-      return rawLogs;
+      return format(new Date(dateString), 'yyyy-MM-dd HH:mm:ss');
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Invalid Date';
     }
+  };
+
+  const sendNotificationEmail = async () => {
+    setIsDialogOpen(false);
+    try {
+      const response = await fetch('/api/send-notification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          incidentId: incident.incident_id,
+          customerName: incident.customer_name,
+          customerEmail: 'customer@example.com', // Replace with actual email if available
+          incidentNumber: incident.incident_number,
+          priority: incident.priority,
+          analystName: incident.analyst_name,
+          recommendation: recommendation,
+        }),
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Failed to send email:', errorData);
+        toast({
+          title: "Failed to send email",
+          description: errorData.error || 'Failed to send notification email.',
+          variant: "destructive",
+        })
+        return;
+      }
+  
+      const result = await response.json();
+      console.log('Email sent successfully:', result);
+      toast({
+        title: "Success",
+        description: "Notification email sent successfully!",
+      })
+    } catch (error: any) {
+      console.error('Error sending email:', error);
+      toast({
+        title: "Error",
+        description: error.message || 'An unexpected error occurred.',
+        variant: "destructive",
+      })
+    }
+  };
+
+  const exportToPDF = async () => {
+    const pdf = new jsPDF();
+
+    // Set document properties
+    pdf.setProperties({
+      title: `Incident ${incident.incident_number} Details`,
+      author: 'Your Organization',
+    });
+
+    // Add title
+    pdf.setFontSize(20);
+    pdf.text(`Incident ${incident.incident_number} Details`, 10, 10);
+
+    // Define the data for the autoTable
+    const data = [
+      { label: 'Incident ID', value: incident.incident_id },
+      { label: 'Incident Number', value: incident.incident_number },
+      { label: 'Customer', value: incident.customer_name },
+      { label: 'Priority', value: incident.priority },
+      { label: 'Creation Time', value: formatDate(incident.creation_time) },
+      { label: 'SLA Status', value: incident.sla_status },
+      { label: 'SLA Remaining', value: incident.sla_remaining_formatted },
+      { label: 'Analyst', value: incident.analyst_name || 'N/A' },
+      { label: 'Status', value: incident.status },
+      { label: 'Closed Time', value: formatDate(incident.closed_time) },
+      { label: 'Jira Ticket ID', value: incident.jira_ticket_id || 'N/A' },
+      { label: 'Customer Notification', value: incident.customer_notification },
+      { label: 'Resolution Minutes', value: incident.resolution_minutes },
+    ];
+
+    // Convert data to the format autoTable expects
+    const body = data.map(item => [item.label, item.value]);
+
+    // Style options
+    const options = {
+      startY: 30,
+      headStyles: { fillColor: [40, 40, 40], textColor: [255, 255, 255] },
+      bodyStyles: { textColor: [40, 40, 40] },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+    };
+
+    // Add the table to the PDF
+    (pdf as any).autoTable({
+      head: [['Detail', 'Value']],
+      body: body,
+      ...options,
+    });
+
+    // Save the PDF
+    pdf.save(`incident-${incident.incident_number}-details.pdf`);
   };
 
   return (
-    <div className="row">
-      <div className="grid grid-cols-12 gap-4 h-full">
-        {/* Left Column - Main Content */}
-        <div className="col-span-9 space-y-6">
-          {/* Recommendation Analysis */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Recommendation Analysis</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <RichTextEditor />
-            </CardContent>
-          </Card>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold">
+            Incident: {incident.incident_number}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <strong>Incident ID:</strong> {incident.incident_id}
+            </div>
+            <div>
+              <strong>Customer:</strong> {incident.customer_name}
+            </div>
+            <div>
+              <strong>Priority:</strong>
+              <Badge className={getPriorityColor(incident.priority)}>
+                {incident.priority}
+              </Badge>
+            </div>
+            <div>
+              <strong>Creation Time:</strong> {formatDate(incident.creation_time)}
+            </div>
+            <div>
+              <strong>SLA Status:</strong> {incident.sla_status}
+            </div>
+            <div>
+              <strong>SLA Remaining:</strong> {incident.sla_remaining_formatted}
+            </div>
+            <div>
+              <strong>Analyst:</strong> {incident.analyst_name || 'N/A'}
+            </div>
+            <div>
+              <strong>Status:</strong> {incident.status}
+            </div>
+          </div>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Raw Logs</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {incident.raw_logs ? (
-                <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-xs overflow-auto">
-                  <pre className="whitespace-pre-wrap">
-                    {formatRawLogs(incident.raw_logs)}
-                  </pre>
-                </div>
-              ) : (
-                <div className="text-center text-muted-foreground py-8">
-                  <FileText className="mx-auto h-12 w-12 mb-4" />
-                  <p>No raw logs available for this incident</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right Column - Raw Logs */}
-        <div className="col-span-3 space-y-6">
-          {/* Basic Information */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex justify-between items-center">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <AlertTriangle className="w-5 h-5" />
-                  Basic Information
-                </CardTitle>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={`flex items-center gap-1 ${getStatusColor(
-                        currentStatus || incident.status
-                      )}`}
-                    >
-                      {currentStatus || incident.status}
-                      <ChevronRight className="h-4 w-4 ml-1" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Change Status</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuRadioGroup
-                      value={currentStatus || incident.status}
-                      onValueChange={updateStatus}
-                    >
-                      <DropdownMenuRadioItem value="active">
-                        Active
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value="closed">
-                        Closed
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value="escalated">
-                        Escalated
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value="need review">
-                        Need Review
-                      </DropdownMenuRadioItem>
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Incident Number
-                  </p>
-                  <p className="font-mono text-sm">
-                    {incident.incident_number}
-                  </p>
-                </div>
-                {/* <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Last Status Change
-                  </p>
-                  <p className="text-sm">
-                    {incident.status_updated_time
-                      ? formatDateTime(incident.status_updated_time)
-                      : formatDateTime(incident.creation_time)}
-                  </p>
-                </div> */}
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Priority
-                  </p>
-                  <Badge className={getPriorityColor(incident.priority)}>
-                    {incident.priority}
-                  </Badge>
-                </div>
-              </div>
-              <Button className="w-full" asChild>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <strong>Closed Time:</strong> {formatDate(incident.closed_time)}
+            </div>
+            <div>
+              <strong>Jira Ticket ID:</strong> {incident.jira_ticket_id || 'N/A'}
+              {incident.jira_ticket_id && (
                 <a
-                  href={incident.incident_url}
+                  href={`https://your-jira-instance.com/browse/${incident.jira_ticket_id}`}
                   target="_blank"
                   rel="noopener noreferrer"
+                  className="ml-2 text-blue-500 hover:underline"
                 >
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  View in Azure Sentinel
+                  <ExternalLink className="inline-block w-4 h-4 mr-1 align-text-top" />
+                  View in Jira
                 </a>
+              )}
+            </div>
+            <div>
+              <strong>Customer Notification:</strong> {incident.customer_notification}
+            </div>
+            <div>
+              <strong>Resolution Minutes:</strong> {incident.resolution_minutes}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Raw Logs</CardTitle>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <div className="flex justify-between items-center mb-2">
+            <div className="text-sm text-muted-foreground">
+              Use these logs for detailed analysis and troubleshooting.
+            </div>
+            <div className="space-x-2">
+              <Button variant="outline" size="sm" onClick={handleCopyLogs} disabled={isCopied}>
+                <Copy className="w-4 h-4 mr-2" />
+                {isCopied ? 'Copied!' : 'Copy Logs'}
               </Button>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Assigned Analyst
-                </p>
-                <p className="text-sm font-medium">
-                  {incident.analyst_name || "Unassigned"} (
-                  {incident.analyst_code})
-                </p>
-                {incident.analyst_email && (
-                  <div className="flex items-center gap-1 mt-1">
-                    <Mail className="w-3 h-3" />
-                    <p className="text-xs text-muted-foreground">
-                      {incident.analyst_email}
-                    </p>
-                  </div>
-                )}
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground mb-2">
-                  Actions
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={sendEmail}
-                    className="flex items-center"
-                  >
-                    <Send className="w-4 h-4 mr-2" />
-                    Send to Customer
-                  </Button>
+              <Button variant="outline" size="sm" onClick={handleExportLogs}>
+                <Download className="w-4 h-4 mr-2" />
+                Export Logs
+              </Button>
+            </div>
+          </div>
+          <pre className="bg-gray-100 dark:bg-gray-800 rounded-md p-4 font-mono text-sm whitespace-pre-wrap">
+            {incident.raw_logs}
+          </pre>
+        </CardContent>
+      </Card>
 
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="flex items-center"
-                      >
-                        <Upload className="w-4 h-4 mr-2" />
-                        Request Change
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
-                      <DialogHeader>
-                        <DialogTitle>Request Change to OpenTaxii</DialogTitle>
-                        <DialogDescription>
-                          This action will request this incident's assets to be
-                          pushed onto OpenTaxii later.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="py-4">
-                        <p className="text-sm text-muted-foreground">
-                          When you request a change, the incident assets will be
-                          queued for processing and will be pushed to the
-                          OpenTaxii server during the next scheduled update.
-                        </p>
-                        <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
-                          <p className="text-sm font-medium text-amber-800">
-                            Important Note
-                          </p>
-                          <p className="text-xs text-amber-700 mt-1">
-                            This action cannot be undone. Please ensure that the
-                            incident data is accurate and ready to be shared.
-                          </p>
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() =>
-                            document
-                              .querySelector(
-                                '[data-state="open"] button[aria-label="Close"]'
-                              )
-                              ?.click()
-                          }
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="default"
-                          onClick={submitRequestChange}
-                        >
-                          Confirm Request
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                </div>
+      <div className="flex justify-end space-x-2">
+        <Button variant="secondary" onClick={exportToPDF}>
+          <Download className="w-4 h-4 mr-2" />
+          Export to PDF
+        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button>
+              <Mail className="w-4 h-4 mr-2" />
+              Notify Customer
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Notify Customer</AlertDialogTitle>
+              <AlertDialogDescription>
+                Do you want to send a notification email to the customer about this incident?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <label htmlFor="recommendation" className="text-right">
+                  Recommendation
+                </label>
+                <textarea
+                  id="recommendation"
+                  className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="Recommendation for customer"
+                  value={recommendation}
+                  onChange={(e) => setRecommendation(e.target.value)}
+                />
               </div>
-            </CardContent>
-          </Card>
-
-          {/* SLA Information */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Clock className="w-5 h-5" />
-                SLA Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    SLA Status
-                  </p>
-                  <Badge
-                    className={getSLAStatusColor(
-                      incident.sla_status,
-                      incident.sla_remaining_seconds
-                    )}
-                  >
-                    {incident.sla_status}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Resolution SLA
-                  </p>
-                  <p className="text-sm">
-                    {incident.resolution_minutes} minutes
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-2">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    SLA Target
-                  </p>
-                  <p className="text-sm">
-                    {incident.sla_target_time
-                      ? formatDateTime(incident.sla_target_time)
-                      : "Not set"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Created
-                  </p>
-                  <p className="text-sm">
-                    {formatDateTime(incident.creation_time)}
-                  </p>
-                </div>
-                {incident.status === "active" && incident.sla_target_time && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">
-                      Time Remaining
-                    </p>
-                    <p
-                      className={`text-lg font-semibold ${
-                        remainingTime === "BREACHED"
-                          ? "text-red-600"
-                          : "text-green-600"
-                      }`}
-                    >
-                      {remainingTime}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                {incident.closed_time && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">
-                      Closed
-                    </p>
-                    <p className="text-sm">
-                      {formatDateTime(incident.closed_time)}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Customer Information */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Building2 className="w-5 h-5" />
-                Customer Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Customer
-                  </p>
-                  <p className="text-sm font-medium">
-                    {incident.customer_name}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Workspace
-                  </p>
-                  <p className="text-xs text-muted-foreground font-mono">
-                    {incident.workspace_name}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={sendNotificationEmail}>Continue</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
-}
+};
+
+export default IncidentDetail;

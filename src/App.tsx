@@ -36,11 +36,54 @@ const App = () => (
                   <Report />
                 </ProtectedRoute>
               } />
+              
+              {/* Main dashboard routes */}
               <Route path="/" element={
                 <ProtectedRoute>
                   <Index />
                 </ProtectedRoute>
               } />
+              <Route path="/incidents" element={
+                <ProtectedRoute>
+                  <Index />
+                </ProtectedRoute>
+              } />
+              <Route path="/analysts" element={
+                <ProtectedRoute>
+                  <Index />
+                </ProtectedRoute>
+              } />
+              <Route path="/schedule" element={
+                <ProtectedRoute>
+                  <Index />
+                </ProtectedRoute>
+              } />
+              <Route path="/customers" element={
+                <ProtectedRoute>
+                  <Index />
+                </ProtectedRoute>
+              } />
+              <Route path="/requests" element={
+                <ProtectedRoute>
+                  <Index />
+                </ProtectedRoute>
+              } />
+              <Route path="/sla" element={
+                <ProtectedRoute>
+                  <Index />
+                </ProtectedRoute>
+              } />
+              <Route path="/workload" element={
+                <ProtectedRoute>
+                  <Index />
+                </ProtectedRoute>
+              } />
+              <Route path="/reports" element={
+                <ProtectedRoute>
+                  <Index />
+                </ProtectedRoute>
+              } />
+              
               <Route path="/incident/:incidentId" element={
                 <ProtectedRoute>
                   <IncidentDetailPage />

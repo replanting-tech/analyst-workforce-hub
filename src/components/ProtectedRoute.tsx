@@ -10,6 +10,9 @@ interface ProtectedRouteProps {
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { user, loading } = useAuth();
 
+  // Check for development authentication
+  const isDevAuth = localStorage.getItem('dev-auth') === 'true';
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -18,7 +21,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     );
   }
 
-  if (!user) {
+  if (!user && !isDevAuth) {
     return <Navigate to="/auth" replace />;
   }
 

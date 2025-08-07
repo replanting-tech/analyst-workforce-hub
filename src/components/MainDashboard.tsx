@@ -12,9 +12,13 @@ import { SLAConfiguration } from './sections/SLAConfiguration';
 import { WorkloadManagement } from './sections/WorkloadManagement';
 import { ReportPage } from './sections/ReportPage';
 import { DarkModeToggle } from './DarkModeToggle';
+import UserNav from './UserNav';
+import { useLocation } from 'react-router-dom';
 
 export function MainDashboard() {
-  const [activeSection, setActiveSection] = useState('overview');
+  const location = useLocation();
+  const pathToSection = location.pathname.slice(1) || 'overview';
+  const [activeSection, setActiveSection] = useState(pathToSection);
 
   const renderContent = () => {
     switch (activeSection) {
@@ -66,6 +70,7 @@ export function MainDashboard() {
             <h1 className="text-2xl font-bold text-foreground">{getSectionTitle()}</h1>
           </div>
           <div className="flex items-center space-x-4">
+            <UserNav />
             <DarkModeToggle />
             <div className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-3 py-1 rounded-full text-sm font-medium">
               System Active

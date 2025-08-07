@@ -11,9 +11,17 @@ import { Mail, Shield } from 'lucide-react';
 
 const Auth = () => {
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [loginMode, setLoginMode] = useState(false);
   const navigate = useNavigate();
+
+  // Development credentials
+  const DEV_CREDENTIALS = {
+    email: 'admin@incident.dev',
+    password: 'admin123'
+  };
 
   useEffect(() => {
     // Check if user is already authenticated
@@ -36,6 +44,14 @@ const Auth = () => {
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  const handleDevLogin = () => {
+    // Simulate successful login for development
+    toast.success('Development login successful!');
+    // Create a mock session by setting localStorage
+    localStorage.setItem('dev-auth', 'true');
+    navigate('/');
+  };
 
   const handleMagicLinkLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +85,34 @@ const Auth = () => {
     }
   };
 
+  const handleEmailPasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      toast.error('Please enter both email and password');
+      return;
+    }
+
+    setLoading(true);
+    
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success('Successfully logged in!');
+        navigate('/');
+      }
+    } catch (error) {
+      toast.error('An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
@@ -78,43 +122,118 @@ const Auth = () => {
           </div>
           <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
           <CardDescription>
-            Enter your email to receive a magic link for secure login
+            {loginMode ? 'Enter your credentials to login' : 'Enter your email to receive a magic link for secure login'}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {!emailSent ? (
-            <form onSubmit={handleMagicLinkLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  required
-                  disabled={loading}
-                />
+            <div className="space-y-4">
+              {/* Development Login */}
+              <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                <h3 className="font-medium text-yellow-800 dark:text-yellow-200 mb-2">Development Access</h3>
+                <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-3">
+                  Quick access for development and testing
+                </p>
+                <Button onClick={handleDevLogin} variant="outline" className="w-full">
+                  Login as Admin (Development)
+                </Button>
               </div>
-              
-              <Button 
-                type="submit" 
-                className="w-full" 
-                disabled={loading}
-              >
-                {loading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Sending magic link...
+
+              {/* Toggle between login modes */}
+              <div className="flex gap-2">
+                <Button 
+                  variant={!loginMode ? "default" : "outline"} 
+                  onClick={() => setLoginMode(false)}
+                  className="flex-1"
+                >
+                  Magic Link
+                </Button>
+                <Button 
+                  variant={loginMode ? "default" : "outline"} 
+                  onClick={() => setLoginMode(true)}
+                  className="flex-1"
+                >
+                  Email/Password
+                </Button>
+              </div>
+
+              {loginMode ? (
+                <form onSubmit={handleEmailPasswordLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email address</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Enter your email"
+                      required
+                      disabled={loading}
+                    />
                   </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4" />
-                    Send magic link
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      required
+                      disabled={loading}
+                    />
                   </div>
-                )}
-              </Button>
-            </form>
+                  
+                  <Button 
+                    type="submit" 
+                    className="w-full" 
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Signing in...
+                      </div>
+                    ) : (
+                      'Sign In'
+                    )}
+                  </Button>
+                </form>
+              ) : (
+                <form onSubmit={handleMagicLinkLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email address</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Enter your email"
+                      required
+                      disabled={loading}
+                    />
+                  </div>
+                  
+                  <Button 
+                    type="submit" 
+                    className="w-full" 
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Sending magic link...
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4" />
+                        Send magic link
+                      </div>
+                    )}
+                  </Button>
+                </form>
+              )}
+            </div>
           ) : (
             <div className="text-center space-y-4">
               <div className="mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">

@@ -13,24 +13,39 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { LogOut, User } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 const UserNav = () => {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+  
+  // Check for development authentication
+  const isDevAuth = localStorage.getItem('dev-auth') === 'true';
 
   const handleSignOut = async () => {
     try {
-      await signOut();
-      toast.success('Logged out successfully');
+      if (isDevAuth) {
+        localStorage.removeItem('dev-auth');
+        navigate('/auth');
+        toast.success('Logged out successfully');
+      } else {
+        await signOut();
+        toast.success('Logged out successfully');
+      }
     } catch (error) {
       toast.error('Error logging out');
     }
   };
 
-  if (!user) return null;
+  if (!user && !isDevAuth) return null;
 
-  const userInitials = user.email
+  const userInitials = user?.email
     ? user.email.substring(0, 2).toUpperCase()
+    : isDevAuth
+    ? 'AD'
     : 'U';
+
+  const displayEmail = user?.email || (isDevAuth ? 'admin@incident.dev' : 'Unknown User');
 
   return (
     <DropdownMenu>
@@ -46,9 +61,11 @@ const UserNav = () => {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">Account</p>
+            <p className="text-sm font-medium leading-none">
+              {isDevAuth ? 'Admin (Dev)' : 'Account'}
+            </p>
             <p className="text-xs leading-none text-muted-foreground">
-              {user.email}
+              {displayEmail}
             </p>
           </div>
         </DropdownMenuLabel>

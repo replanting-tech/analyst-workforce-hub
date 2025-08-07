@@ -2,6 +2,15 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Analyst } from '@/hooks/useAnalysts'; // Import Analyst interface
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -22,12 +31,109 @@ import {
 import { Users, Search, Plus, Edit, UserCheck, UserX, Activity } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAnalysts } from '@/hooks/useAnalysts';
+import { useToast } from '@/components/ui/use-toast'; // Import useToast
 
 export function AnalystManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false); // State for Add User dialog visibility
+  const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false); // State for Reset Password dialog visibility
+  const [isResetLinkDialogOpen, setIsResetLinkDialogOpen] = useState(false); // State for Reset Link display dialog
+  const [resetPasswordLink, setResetPasswordLink] = useState(''); // State to store the generated reset link
+  const [selectedAnalyst, setSelectedAnalyst] = useState<Analyst | null>(null); // State for selected analyst
   
-  const { data: analysts = [], isLoading, error } = useAnalysts();
+  const { data: analysts = [], isLoading, error, refetch } = useAnalysts();
+  const { toast } = useToast(); // Initialize useToast
+
+  const handleAddAsUser = async (analyst: Analyst) => {
+    const payload = JSON.stringify({ email: analyst.email, name: analyst.name });
+    try {
+      const response = await fetch('https://xmozpbewjkeisvpfzeca.supabase.co/functions/v1/register-analyst-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhtb3pwYmV3amtlaXN2cGZ6ZWNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyMDM3MDMsImV4cCI6MjA2Nzc3OTcwM30.goD6H9fLQPljKpifLlLIU6_Oo4jJO7b2-8GlkeqkiKA`, // SUPABASE_PUBLISHABLE_KEY
+        },
+        body: payload,
+      });
+
+      console.log('Payload:', payload);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error(`Error registering user for ${analyst.email}:`, errorData.error);
+        // Optionally show a toast notification for error
+        return;
+      }
+
+      const { success, userId } = await response.json();
+      if (success) {
+        console.log(`User ${analyst.email} registered with ID: ${userId}`);
+        toast({
+          title: "Analyst Added!",
+          description: `${analyst.name} has been successfully added as a user.`,
+          variant: "default",
+        });
+        refetch(); // Refetch analysts to update the UI
+      }
+    } catch (fetchError) {
+      console.error(`Network error registering user for ${analyst.email}:`, fetchError);
+      toast({
+        title: "Error",
+        description: `Failed to add ${analyst.name} as a user. Please try again.`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleResetPassword = async (analyst: Analyst) => {
+    try {
+      const response = await fetch('https://xmozpbewjkeisvpfzeca.supabase.co/functions/v1/reset-user-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhtb3pwYmV3amtlaXN2cGZ6ZWNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyMDM3MDMsImV4cCI6MjA2Nzc3OTcwM30.goD6H9fLQPljKpifLlLIU6_Oo4jJO7b2-8GlkeqkiKA`, // SUPABASE_PUBLISHABLE_KEY
+        },
+        body: JSON.stringify({ email: analyst.email }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error(`Error generating password reset link for ${analyst.email}:`, errorData.error);
+        toast({
+          title: "Error",
+          description: `Failed to generate reset link for ${analyst.name}. Please try again.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { success, resetLink } = await response.json();
+      if (success && resetLink) {
+        console.log(`Password reset link generated for ${analyst.email}:`, resetLink);
+        setResetPasswordLink(resetLink);
+        setIsResetLinkDialogOpen(true); // Open the dialog to show the link
+        toast({
+          title: "Password Reset Link Generated!",
+          description: `A reset link has been generated for ${analyst.name}.`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: `Failed to generate reset link for ${analyst.name}.`,
+          variant: "destructive",
+        });
+      }
+    } catch (fetchError) {
+      console.error(`Network error generating password reset link for ${analyst.email}:`, fetchError);
+      toast({
+        title: "Error",
+        description: `Network error while generating password reset link for ${analyst.name}.`,
+        variant: "destructive",
+      });
+    }
+  };
 
   const filteredAnalysts = analysts.filter(analyst => {
     const matchesSearch = analyst.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -243,6 +349,30 @@ export function AnalystManagement() {
                         <Button variant="ghost" size="sm">
                           View Details
                         </Button>
+                        {!analyst.isRegisteredUser && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedAnalyst(analyst);
+                              setIsAddUserDialogOpen(true);
+                            }}
+                          >
+                            Add as User
+                          </Button>
+                        )}
+                        {analyst.isRegisteredUser && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedAnalyst(analyst);
+                              setIsResetPasswordDialogOpen(true);
+                            }}
+                          >
+                            Reset Password
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -252,6 +382,73 @@ export function AnalystManagement() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add User Confirmation Dialog */}
+      <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Add Analyst as User</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to add <strong>{selectedAnalyst?.name}</strong> ({selectedAnalyst?.email}) as a new user in Supabase authentication?
+              The default password "C0mpn3t!" will be set, and the user will need to use the "Forgot Password" flow to set their initial password.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddUserDialogOpen(false)}>Cancel</Button>
+            <Button onClick={() => {
+              if (selectedAnalyst) {
+                handleAddAsUser(selectedAnalyst);
+              }
+              setIsAddUserDialogOpen(false);
+            }}>Confirm Add</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Confirmation Dialog */}
+      <Dialog open={isResetPasswordDialogOpen} onOpenChange={setIsResetPasswordDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Reset Password</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to send a password reset link to <strong>{selectedAnalyst?.name}</strong> ({selectedAnalyst?.email})?
+              An email with the reset link will be sent to their registered email address.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsResetPasswordDialogOpen(false)}>Cancel</Button>
+            <Button onClick={() => {
+              if (selectedAnalyst) {
+                handleResetPassword(selectedAnalyst);
+              }
+              setIsResetPasswordDialogOpen(false);
+            }}>Send Reset Link</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Link Display Dialog */}
+      <Dialog open={isResetLinkDialogOpen} onOpenChange={setIsResetLinkDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Password Reset Link</DialogTitle>
+            <DialogDescription>
+              Copy the following link to reset the password for <strong>{selectedAnalyst?.name}</strong>:
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-4 bg-gray-100 rounded-md break-all">
+            <p className="text-sm font-mono">{resetPasswordLink}</p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => {
+              navigator.clipboard.writeText(resetPasswordLink);
+              toast({ title: "Link Copied!", description: "The reset link has been copied to your clipboard." });
+              setIsResetLinkDialogOpen(false);
+            }}>Copy Link</Button>
+            <Button variant="outline" onClick={() => setIsResetLinkDialogOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Workload Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -274,8 +471,8 @@ export function AnalystManagement() {
                   </div>
                   <div className="flex items-center space-x-2">
                     <div className="w-24 bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-blue-600 h-2 rounded-full" 
+                      <div
+                        className="bg-blue-600 h-2 rounded-full"
                         style={{width: `${Math.min((analyst.current_active_incidents / 10) * 100, 100)}%`}}
                       ></div>
                     </div>
@@ -301,7 +498,7 @@ export function AnalystManagement() {
                   <div className="flex justify-between items-center mb-2">
                     <span className="font-medium text-sm">{analyst.name}</span>
                     <Badge variant="secondary">
-                      {analyst.today_closed_incidents > 0 
+                      {analyst.today_closed_incidents > 0
                         ? Math.round((analyst.today_closed_incidents / analyst.today_total_incidents) * 100)
                         : 0}% Resolution
                     </Badge>

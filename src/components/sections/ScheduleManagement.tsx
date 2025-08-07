@@ -3,15 +3,23 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, Edit, X, RefreshCw } from 'lucide-react';
+import { Calendar, Clock, Edit, X, RefreshCw, Activity } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useSchedule, useDeleteSchedule, useUpdateSchedule } from '@/hooks/useSchedule';
+import { useSchedule, useDeleteSchedule, useUpdateSchedule, Schedule } from '@/hooks/useSchedule';
 import { CreateScheduleDialog } from '@/components/CreateScheduleDialog';
 import { ImportScheduleDialog } from '@/components/ImportScheduleDialog';
+import { ActivityLogsDialog } from '@/components/ActivityLogsDialog';
 import { useToast } from '@/hooks/use-toast';
 
 export function ScheduleManagement() {
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [activityLogsDialog, setActivityLogsDialog] = useState<{
+    isOpen: boolean;
+    analystEmail?: string;
+    analystName?: string;
+    shiftDate?: string;
+    shiftTime?: string;
+  }>({ isOpen: false });
   const { toast } = useToast();
   
   const todayStr = new Date().toISOString().split('T')[0];
@@ -96,6 +104,19 @@ export function ScheduleManagement() {
         variant: "destructive",
       });
     }
+  };
+
+  const handleViewActivityLogs = (schedule: Schedule) => {
+    // We need to get the analyst email from the analysts table
+    // For now, we'll use the analyst_code as a placeholder
+    // In a real implementation, you'd want to join with the analysts table
+    setActivityLogsDialog({
+      isOpen: true,
+      analystEmail: `${schedule.analyst_code}@company.com`, // Placeholder email
+      analystName: schedule.analyst_name,
+      shiftDate: schedule.shift_date,
+      shiftTime: `${schedule.shift_start} - ${schedule.shift_end}`,
+    });
   };
 
   // Generate calendar view
@@ -241,9 +262,18 @@ export function ScheduleManagement() {
                                 <Button 
                                   variant="ghost" 
                                   size="sm"
+                                  onClick={() => handleViewActivityLogs(schedule)}
+                                  title="View Activity Logs"
+                                >
+                                  <Activity className="w-3 h-3" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
                                   onClick={() => handleStatusChange(schedule.id, 
                                     schedule.status === 'scheduled' ? 'completed' : 'scheduled'
                                   )}
+                                  title="Toggle Status"
                                 >
                                   <Edit className="w-3 h-3" />
                                 </Button>
@@ -251,6 +281,7 @@ export function ScheduleManagement() {
                                   variant="ghost" 
                                   size="sm"
                                   onClick={() => handleDeleteSchedule(schedule.id)}
+                                  title="Delete Schedule"
                                 >
                                   <X className="w-3 h-3" />
                                 </Button>
@@ -431,6 +462,16 @@ export function ScheduleManagement() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Activity Logs Dialog */}
+      <ActivityLogsDialog
+        isOpen={activityLogsDialog.isOpen}
+        onClose={() => setActivityLogsDialog({ isOpen: false })}
+        analystEmail={activityLogsDialog.analystEmail}
+        analystName={activityLogsDialog.analystName}
+        shiftDate={activityLogsDialog.shiftDate}
+        shiftTime={activityLogsDialog.shiftTime}
+      />
     </div>
   );
 }

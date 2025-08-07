@@ -58,6 +58,27 @@ export type Database = {
           },
         ]
       }
+      analyst_activity_logs: {
+        Row: {
+          id: number
+          analyst_email: string | null
+          info: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          analyst_email?: string | null
+          info?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          analyst_email?: string | null
+          info?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       analyst_workload: {
         Row: {
           active_incidents: number | null

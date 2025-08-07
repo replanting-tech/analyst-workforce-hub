@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus } from 'lucide-react';
-import { useAnalysts } from '@/hooks/useAnalysts';
+import { useAnalystsList } from '@/hooks/useAnalystsList';
 import { useCreateSchedule } from '@/hooks/useSchedule';
 import { useToast } from '@/hooks/use-toast';
 
@@ -20,17 +20,50 @@ export function CreateScheduleDialog() {
     timezone: 'UTC',
   });
 
-  const { data: analysts, isLoading: analystsLoading } = useAnalysts();
+  const { data: analystsList, isLoading: analystsListLoading } = useAnalystsList();
   const createSchedule = useCreateSchedule();
   const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.analyst_id || !formData.shift_date || !formData.shift_start || !formData.shift_end) {
+  const formatTimeInput = (value: string) => {
+    const cleanedValue = value.replace(/\D/g, ''); // Remove non-digits
+    let formattedValue = cleanedValue;
+
+    if (cleanedValue.length > 2) {
+      formattedValue = `${cleanedValue.slice(0, 2)}:${cleanedValue.slice(2, 4)}`;
+    }
+
+    // Basic validation for hours and minutes
+    const [hoursStr, minutesStr] = formattedValue.split(':');
+    const hours = parseInt(hoursStr, 10);
+    const minutes = parseInt(minutesStr, 10);
+
+    if (hours > 23 || minutes > 59) {
+      // Optionally, you can clear the input or show an error
+      // For now, we'll just return the potentially invalid formatted value
+      // More robust validation will happen on form submission
+    }
+
+    return formattedValue;
+  };
+ 
+   const handleSubmit = async (e: React.FormEvent) => {
+     e.preventDefault();
+     
+     if (!formData.analyst_id || !formData.shift_date || !formData.shift_start || !formData.shift_end) {
+       toast({
+         title: "Error",
+         description: "Please fill in all required fields",
+         variant: "destructive",
+       });
+       return;
+     }
+
+    // Validate time format before submission
+    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    if (!timeRegex.test(formData.shift_start) || !timeRegex.test(formData.shift_end)) {
       toast({
         title: "Error",
-        description: "Please fill in all required fields",
+        description: "Please enter time in HH:mm (24h) format.",
         variant: "destructive",
       });
       return;
@@ -79,8 +112,8 @@ export function CreateScheduleDialog() {
                 <SelectValue placeholder="Select analyst" />
               </SelectTrigger>
               <SelectContent>
-                {analysts?.map(analyst => (
-                  <SelectItem key={analyst.code} value={analyst.code}>
+                {analystsList?.map(analyst => (
+                  <SelectItem key={analyst.id} value={analyst.id}>
                     {analyst.name} ({analyst.code})
                   </SelectItem>
                 ))}
@@ -104,9 +137,11 @@ export function CreateScheduleDialog() {
               <Label htmlFor="shift_start">Start Time</Label>
               <Input
                 id="shift_start"
-                type="time"
+                type="text"
                 value={formData.shift_start}
-                onChange={(e) => setFormData({ ...formData, shift_start: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, shift_start: formatTimeInput(e.target.value) })}
+                placeholder="HH:mm (24h format)"
+                maxLength={5} // HH:mm is 5 characters
                 required
               />
             </div>
@@ -114,9 +149,11 @@ export function CreateScheduleDialog() {
               <Label htmlFor="shift_end">End Time</Label>
               <Input
                 id="shift_end"
-                type="time"
+                type="text"
                 value={formData.shift_end}
-                onChange={(e) => setFormData({ ...formData, shift_end: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, shift_end: formatTimeInput(e.target.value) })}
+                placeholder="HH:mm (24h format)"
+                maxLength={5} // HH:mm is 5 characters
                 required
               />
             </div>

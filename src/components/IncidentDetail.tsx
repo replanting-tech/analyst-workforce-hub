@@ -1,12 +1,51 @@
-
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useIncidentById } from '@/hooks/useIncidents';
-import { AlertTriangle, Clock, User, Building2, ExternalLink, Calendar, Target, FileText, AlertCircle, Database, Mail } from 'lucide-react';
+import { useIncidentById } from "@/hooks/useIncidents";
+import {
+  AlertTriangle,
+  Clock,
+  User,
+  Building2,
+  ExternalLink,
+  Calendar,
+  Target,
+  FileText,
+  AlertCircle,
+  Database,
+  Mail,
+  Send,
+  Upload,
+  ChevronRight,
+} from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import  RichTextEditor  from './RichTextEditor';
+import RichTextEditor from "./RichTextEditor";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface IncidentDetailProps {
   incidentId: string;
@@ -14,51 +53,131 @@ interface IncidentDetailProps {
 
 export function IncidentDetail({ incidentId }: IncidentDetailProps) {
   const { data: incident, isLoading, error } = useIncidentById(incidentId);
-  const [remainingTime, setRemainingTime] = useState<string>('');
-  const [recommendationAnalysis, setRecommendationAnalysis] = useState<string>('');
+  const [remainingTime, setRemainingTime] = useState<string>("");
+  const [recommendationAnalysis, setRecommendationAnalysis] =
+    useState<string>("");
+  const [currentStatus, setCurrentStatus] = useState<string>("");
 
-async function sendEmail() {
-  if (!incident) return;
+  async function sendEmail() {
+    if (!incident) return;
 
-  const payload = {
-    incidentId: incident.id,
-    customerName: incident.customer_name,
-    customerEmail: "harrysunaryo03@gmail.com", // fallback handled by backend
-    incidentNumber: incident.incident_number,
-    priority: incident.priority,
-    analystName: incident.analyst_name,
-    recommendation: recommendationAnalysis || undefined,
-  };
+    const payload = {
+      incidentId: incident.id,
+      customerName: incident.customer_name,
+      customerEmail: "harrysunaryo03@gmail.com", // fallback handled by backend
+      incidentNumber: incident.incident_number,
+      priority: incident.priority,
+      analystName: incident.analyst_name,
+      recommendation: recommendationAnalysis || undefined,
+    };
 
-  try {
-    const response = await fetch('https://xmozpbewjkeisvpfzeca.supabase.co/functions/v1/send-notification-email', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhtb3pwYmV3amtlaXN2cGZ6ZWNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyMDM3MDMsImV4cCI6MjA2Nzc3OTcwM30.goD6H9fLQPljKpifLlLIU6_Oo4jJO7b2-8GlkeqkiKA`, // preferably use env var
-      },
-      body: JSON.stringify(payload),
-    });
+    try {
+      const response = await fetch(
+        "https://xmozpbewjkeisvpfzeca.supabase.co/functions/v1/send-notification-email",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhtb3pwYmV3amtlaXN2cGZ6ZWNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyMDM3MDMsImV4cCI6MjA2Nzc3OTcwM30.goD6H9fLQPljKpifLlLIU6_Oo4jJO7b2-8GlkeqkiKA`, // preferably use env var
+          },
+          body: JSON.stringify(payload),
+        }
+      );
 
-    const result = await response.json();
+      const result = await response.json();
 
-    if (!response.ok) {
-      console.error("Failed to send email:", result.error);
-      alert("Failed to send email.");
-    } else {
-      console.log("Email sent successfully:", result);
-      alert("Email sent!");
+      if (!response.ok) {
+        console.error("Failed to send email:", result.error);
+        alert("Failed to send email.");
+      } else {
+        console.log("Email sent successfully:", result);
+        alert("Email sent!");
+      }
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      alert("An unexpected error occurred.");
     }
-  } catch (err) {
-    console.error("Unexpected error:", err);
-    alert("An unexpected error occurred.");
   }
-}
 
+  // Function to update incident status
+  async function updateStatus(newStatus: string) {
+    if (!incident) return;
+
+    try {
+      // Here you would typically make an API call to update the status
+      // For now, we'll just update the local state
+      setCurrentStatus(newStatus);
+      alert(`Status updated to: ${newStatus}`);
+
+      // In a real implementation, you would call your API here
+      // const response = await fetch(`your-api-endpoint/${incident.id}`, {
+      //   method: 'PATCH',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ status: newStatus }),
+      // });
+
+      // if (!response.ok) {
+      //   throw new Error('Failed to update status');
+      // }
+    } catch (err) {
+      console.error("Error updating status:", err);
+      alert("Failed to update status. Please try again.");
+    }
+  }
+
+  // Function to submit request change to OpenTaxii
+  async function submitRequestChange() {
+    if (!incident) return;
+
+    try {
+      const payload = {
+        p_incident_id: incident.incident_number,
+        p_analyst_name: incident.analyst_name || "Unassigned",
+        p_jira_ticket_id: "TEST-123",
+        p_assets: "test",
+      };
+
+      const response = await fetch(
+        "https://xmozpbewjkeisvpfzeca.supabase.co/rest/v1/rpc/create_request_change",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey:
+              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhtb3pwYmV3amtlaXN2cGZ6ZWNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyMDM3MDMsImV4cCI6MjA2Nzc3OTcwM30.goD6H9fLQPljKpifLlLIU6_Oo4jJO7b2-8GlkeqkiKA",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          `Failed to submit request: ${
+            errorData.message || response.statusText
+          }`
+        );
+      }
+
+      alert("Change request submitted successfully!");
+      // Close the dialog
+      document
+        .querySelector('[data-state="open"] button[aria-label="Close"]')
+        ?.click();
+    } catch (err) {
+      console.error("Error submitting request change:", err);
+      alert(
+        `Failed to submit request change: ${
+          err instanceof Error ? err.message : "Unknown error"
+        }`
+      );
+    }
+  }
 
   // Live countdown timer for SLA
   useEffect(() => {
-    if (!incident || incident.status === 'closed' || !incident.sla_target_time) return;
+    if (!incident || incident.status === "closed" || !incident.sla_target_time)
+      return;
 
     const updateCountdown = () => {
       const now = new Date().getTime();
@@ -67,11 +186,13 @@ async function sendEmail() {
 
       if (difference > 0) {
         const hours = Math.floor(difference / (1000 * 60 * 60));
-        const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+        const minutes = Math.floor(
+          (difference % (1000 * 60 * 60)) / (1000 * 60)
+        );
         const seconds = Math.floor((difference % (1000 * 60)) / 1000);
         setRemainingTime(`${hours}h ${minutes}m ${seconds}s`);
       } else {
-        setRemainingTime('BREACHED');
+        setRemainingTime("BREACHED");
       }
     };
 
@@ -79,6 +200,13 @@ async function sendEmail() {
     const interval = setInterval(updateCountdown, 1000);
 
     return () => clearInterval(interval);
+  }, [incident]);
+
+  // Set initial status when incident data is loaded
+  useEffect(() => {
+    if (incident) {
+      setCurrentStatus(incident.status);
+    }
   }, [incident]);
 
   if (isLoading) {
@@ -106,38 +234,52 @@ async function sendEmail() {
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'Very High': return 'bg-red-100 text-red-800 border-red-200';
-      case 'High': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'Medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'Low': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'Informational': return 'bg-gray-100 text-gray-800 border-gray-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case "Very High":
+        return "bg-red-100 text-red-800 border-red-200";
+      case "High":
+        return "bg-orange-100 text-orange-800 border-orange-200";
+      case "Medium":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "Low":
+        return "bg-blue-100 text-blue-800 border-blue-200";
+      case "Informational":
+        return "bg-gray-100 text-gray-800 border-gray-200";
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200";
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-green-100 text-green-800';
-      case 'closed': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case "active":
+        return "bg-green-100 text-green-800 hover:bg-green-200";
+      case "closed":
+        return "bg-gray-100 text-gray-800 hover:bg-gray-200";
+      case "escalated":
+        return "bg-red-100 text-red-800 hover:bg-red-200";
+      case "need review":
+        return "bg-yellow-100 text-yellow-800 hover:bg-yellow-200";
+      default:
+        return "bg-gray-100 text-gray-800 hover:bg-gray-200";
     }
   };
 
   const getSLAStatusColor = (slaStatus: string, remainingSeconds: number) => {
-    if (slaStatus === 'breach') return 'bg-red-100 text-red-800';
-    if (remainingSeconds <= 900 && remainingSeconds > 0) return 'bg-orange-100 text-orange-800';
-    if (slaStatus === 'met') return 'bg-green-100 text-green-800';
-    return 'bg-blue-100 text-blue-800';
+    if (slaStatus === "breach") return "bg-red-100 text-red-800";
+    if (remainingSeconds <= 900 && remainingSeconds > 0)
+      return "bg-orange-100 text-orange-800";
+    if (slaStatus === "met") return "bg-green-100 text-green-800";
+    return "bg-blue-100 text-blue-800";
   };
 
   const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString('id-ID', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
+    return new Date(dateString).toLocaleString("id-ID", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
     });
   };
 
@@ -151,176 +293,340 @@ async function sendEmail() {
   };
 
   return (
-    <div className='row'>
+    <div className="row">
       <div className="grid grid-cols-12 gap-4 h-full">
-      {/* Left Column - Main Content */}
-      <div className="col-span-9 space-y-6">
+        {/* Left Column - Main Content */}
+        <div className="col-span-9 space-y-6">
+          {/* Recommendation Analysis */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Recommendation Analysis</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RichTextEditor />
+            </CardContent>
+          </Card>
 
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Raw Logs</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {incident.raw_logs ? (
+                <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-xs overflow-auto">
+                  <pre className="whitespace-pre-wrap">
+                    {formatRawLogs(incident.raw_logs)}
+                  </pre>
+                </div>
+              ) : (
+                <div className="text-center text-muted-foreground py-8">
+                  <FileText className="mx-auto h-12 w-12 mb-4" />
+                  <p>No raw logs available for this incident</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
-        {/* Recommendation Analysis */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Recommendation Analysis</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RichTextEditor
-            />
-          </CardContent>
-        </Card>
+        {/* Right Column - Raw Logs */}
+        <div className="col-span-3 space-y-6">
+          {/* Basic Information */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex justify-between items-center">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <AlertTriangle className="w-5 h-5" />
+                  Basic Information
+                </CardTitle>
 
-             <Card >
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Raw Logs</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {incident.raw_logs ? (
-              <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-xs overflow-auto">
-                <pre className="whitespace-pre-wrap">{formatRawLogs(incident.raw_logs)}</pre>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={`flex items-center gap-1 ${getStatusColor(
+                        currentStatus || incident.status
+                      )}`}
+                    >
+                      {currentStatus || incident.status}
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Change Status</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuRadioGroup
+                      value={currentStatus || incident.status}
+                      onValueChange={updateStatus}
+                    >
+                      <DropdownMenuRadioItem value="active">
+                        Active
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="closed">
+                        Closed
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="escalated">
+                        Escalated
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="need review">
+                        Need Review
+                      </DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
-            ) : (
-              <div className="text-center text-muted-foreground py-8">
-                <FileText className="mx-auto h-12 w-12 mb-4" />
-                <p>No raw logs available for this incident</p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Incident Number
+                  </p>
+                  <p className="font-mono text-sm">
+                    {incident.incident_number}
+                  </p>
+                </div>
+                {/* <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Last Status Change
+                  </p>
+                  <p className="text-sm">
+                    {incident.status_updated_time
+                      ? formatDateTime(incident.status_updated_time)
+                      : formatDateTime(incident.creation_time)}
+                  </p>
+                </div> */}
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Priority
+                  </p>
+                  <Badge className={getPriorityColor(incident.priority)}>
+                    {incident.priority}
+                  </Badge>
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Right Column - Raw Logs */}
-      <div className="col-span-3 space-y-6">
-            {/* Basic Information */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <AlertTriangle className="w-5 h-5" />
-              Basic Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Incident Number</p>
-                <p className="font-mono text-sm">{incident.incident_number}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Status</p>
-                <Badge className={getStatusColor(incident.status)}>
-                  {incident.status}
-                </Badge>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Priority</p>
-                <Badge className={getPriorityColor(incident.priority)}>
-                  {incident.priority}
-                </Badge>
-              </div>
-            </div>
               <Button className="w-full" asChild>
-                <a href={incident.incident_url} target="_blank" rel="noopener noreferrer">
+                <a
+                  href={incident.incident_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   <ExternalLink className="w-4 h-4 mr-2" />
                   View in Azure Sentinel
                 </a>
               </Button>
-               <div>
-              <p className="text-sm font-medium text-muted-foreground">Assigned Analyst</p>
-              <p className="text-sm font-medium">{incident.analyst_name || 'Unassigned'} ({incident.analyst_code})</p>
-              {incident.analyst_email && (
-                <div className="flex items-center gap-1 mt-1">
-                  <Mail className="w-3 h-3" />
-                  <p className="text-xs text-muted-foreground">{incident.analyst_email}</p>
-                </div>
-              )}
-            </div>
-            <div className='flex items-center'>
-              <p className="text-sm font-medium text-muted-foreground">Customer Notification</p>
-              <Button variant='link' size='sm' onClick={sendEmail}>
-                  <div>
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                  Send
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Assigned Analyst
+                </p>
+                <p className="text-sm font-medium">
+                  {incident.analyst_name || "Unassigned"} (
+                  {incident.analyst_code})
+                </p>
+                {incident.analyst_email && (
+                  <div className="flex items-center gap-1 mt-1">
+                    <Mail className="w-3 h-3" />
+                    <p className="text-xs text-muted-foreground">
+                      {incident.analyst_email}
+                    </p>
                   </div>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-2">
+                  Actions
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={sendEmail}
+                    className="flex items-center"
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    Send to Customer
+                  </Button>
 
-        {/* SLA Information */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Clock className="w-5 h-5" />
-              SLA Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">SLA Status</p>
-                <Badge className={getSLAStatusColor(incident.sla_status, incident.sla_remaining_seconds)}>
-                  {incident.sla_status}
-                </Badge>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="flex items-center"
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        Request Change
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Request Change to OpenTaxii</DialogTitle>
+                        <DialogDescription>
+                          This action will request this incident's assets to be
+                          pushed onto OpenTaxii later.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="py-4">
+                        <p className="text-sm text-muted-foreground">
+                          When you request a change, the incident assets will be
+                          queued for processing and will be pushed to the
+                          OpenTaxii server during the next scheduled update.
+                        </p>
+                        <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                          <p className="text-sm font-medium text-amber-800">
+                            Important Note
+                          </p>
+                          <p className="text-xs text-amber-700 mt-1">
+                            This action cannot be undone. Please ensure that the
+                            incident data is accurate and ready to be shared.
+                          </p>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() =>
+                            document
+                              .querySelector(
+                                '[data-state="open"] button[aria-label="Close"]'
+                              )
+                              ?.click()
+                          }
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="default"
+                          onClick={submitRequestChange}
+                        >
+                          Confirm Request
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Resolution SLA</p>
-                <p className="text-sm">{incident.resolution_minutes} minutes</p>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 gap-2">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">SLA Target</p>
-                <p className="text-sm">{incident.sla_target_time ? formatDateTime(incident.sla_target_time) : 'Not set'}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Created</p>
-                <p className="text-sm">{formatDateTime(incident.creation_time)}</p>
-              </div>
-              {incident.status === 'active' && incident.sla_target_time && (
+            </CardContent>
+          </Card>
+
+          {/* SLA Information */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Clock className="w-5 h-5" />
+                SLA Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Time Remaining</p>
-                  <p className={`text-lg font-semibold ${remainingTime === 'BREACHED' ? 'text-red-600' : 'text-green-600'}`}>
-                    {remainingTime}
+                  <p className="text-sm font-medium text-muted-foreground">
+                    SLA Status
+                  </p>
+                  <Badge
+                    className={getSLAStatusColor(
+                      incident.sla_status,
+                      incident.sla_remaining_seconds
+                    )}
+                  >
+                    {incident.sla_status}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Resolution SLA
+                  </p>
+                  <p className="text-sm">
+                    {incident.resolution_minutes} minutes
                   </p>
                 </div>
-              )}
-            </div>
+              </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              {incident.closed_time && (
+              <div className="grid grid-cols-1 gap-2">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Closed</p>
-                  <p className="text-sm">{formatDateTime(incident.closed_time)}</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    SLA Target
+                  </p>
+                  <p className="text-sm">
+                    {incident.sla_target_time
+                      ? formatDateTime(incident.sla_target_time)
+                      : "Not set"}
+                  </p>
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-
-        {/* Customer Information */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Building2 className="w-5 h-5" />
-              Customer Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Customer</p>
-                <p className="text-sm font-medium">{incident.customer_name}</p>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Created
+                  </p>
+                  <p className="text-sm">
+                    {formatDateTime(incident.creation_time)}
+                  </p>
+                </div>
+                {incident.status === "active" && incident.sla_target_time && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Time Remaining
+                    </p>
+                    <p
+                      className={`text-lg font-semibold ${
+                        remainingTime === "BREACHED"
+                          ? "text-red-600"
+                          : "text-green-600"
+                      }`}
+                    >
+                      {remainingTime}
+                    </p>
+                  </div>
+                )}
               </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Workspace</p>
-                <p className="text-xs text-muted-foreground font-mono">{incident.workspace_name}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
+              <div className="grid grid-cols-2 gap-4">
+                {incident.closed_time && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Closed
+                    </p>
+                    <p className="text-sm">
+                      {formatDateTime(incident.closed_time)}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Customer Information */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Building2 className="w-5 h-5" />
+                Customer Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Customer
+                  </p>
+                  <p className="text-sm font-medium">
+                    {incident.customer_name}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Workspace
+                  </p>
+                  <p className="text-xs text-muted-foreground font-mono">
+                    {incident.workspace_name}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
-    </div>
     </div>
   );
 }

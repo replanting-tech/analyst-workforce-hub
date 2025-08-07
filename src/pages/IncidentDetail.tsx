@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { IncidentDetail } from '@/components/IncidentDetail';
+import IncidentDetail from '@/components/IncidentDetail';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { DarkModeToggle } from '@/components/DarkModeToggle';

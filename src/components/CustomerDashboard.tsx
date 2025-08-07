@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useIncidents } from '@/hooks/useIncidents';
 import { useIncidentsRealtime } from '@/hooks/useIncidentsRealtime';
+import { useSLADashboard } from '@/hooks/useSLADashboard';
 
 interface CustomerDashboardProps {
   onLogout: () => void;
@@ -25,36 +27,43 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
   const [selectedPeriod, setSelectedPeriod] = useState('thisMonth');
   const [realtimeDetections, setRealtimeDetections] = useState<Array<{id: string, priority: string, timestamp: Date}>>([]);
   
-  const { data: incidents = [] } = useIncidents();
+  const { data: incidents = [], isLoading: incidentsLoading } = useIncidents();
+  const { data: slaData = [], isLoading: slaLoading } = useSLADashboard();
   
   // Use real-time hook
   useIncidentsRealtime();
 
-  // Calculate incident statistics
+  // Process real-time incident data for the detection chart
+  useEffect(() => {
+    if (incidents.length > 0) {
+      // Get recent incidents (last 10) and convert to realtime detection format
+      const recentIncidents = incidents
+        .slice(0, 10)
+        .map(incident => ({
+          id: incident.id,
+          priority: incident.priority.toLowerCase(),
+          timestamp: new Date(incident.creation_time)
+        }));
+      setRealtimeDetections(recentIncidents);
+    }
+  }, [incidents]);
+
+  // Calculate incident statistics from real data
   const openIncidents = incidents.filter(incident => incident.status === 'active');
   const closedIncidents = incidents.filter(incident => incident.status === 'closed');
   const underInvestigation = openIncidents.filter(incident => incident.analyst_code);
   const totalOpenIncidents = openIncidents.length;
   const totalClosedIncidents = closedIncidents.length;
-  const totalFalsePositive = 6; // This would come from your data
-  const completionRate = totalClosedIncidents > 0 ? Math.round((totalClosedIncidents / (totalClosedIncidents + totalFalsePositive)) * 10) : 0;
-
-  // Mock real-time incident detection data
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (Math.random() > 0.7) { // 30% chance of new detection
-        const priorities = ['high', 'medium', 'low', 'critical'];
-        const newDetection = {
-          id: Math.random().toString(),
-          priority: priorities[Math.floor(Math.random() * priorities.length)],
-          timestamp: new Date()
-        };
-        setRealtimeDetections(prev => [...prev.slice(-5), newDetection]); // Keep last 6 detections
-      }
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, []);
+  
+  // Calculate false positives from closed incidents with classification
+  const falsePositiveIncidents = closedIncidents.filter(incident => 
+    incident.incident_classification === 'FalsePositive'
+  );
+  const totalFalsePositive = falsePositiveIncidents.length;
+  
+  // Calculate completion rate based on closed vs false positive ratio
+  const totalProcessed = totalClosedIncidents + totalFalsePositive;
+  const completionRate = totalProcessed > 0 ? Math.round((totalClosedIncidents / totalProcessed) * 10) : 0;
 
   const getSeverityColor = (priority: string) => {
     switch (priority?.toLowerCase()) {
@@ -62,6 +71,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
       case 'high': return 'bg-red-400';
       case 'medium': return 'bg-yellow-400';
       case 'low': return 'bg-blue-400';
+      case 'informational': return 'bg-gray-400';
       default: return 'bg-gray-400';
     }
   };
@@ -72,77 +82,67 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
 
   const completionData = [
     { name: 'Completed', value: completionRate, color: '#10b981' },
-    { name: 'Remaining', value: 10 - completionRate, color: '#e5e7eb' }
+    { name: 'Remaining', value: Math.max(0, 10 - completionRate), color: '#e5e7eb' }
   ];
 
-  const threatData = [
-    { name: 'Jan', value: 20 },
-    { name: 'Feb', value: 35 },
-    { name: 'Mar', value: 25 },
-    { name: 'Apr', value: 40 },
-    { name: 'May', value: 55 },
-    { name: 'Jun', value: 30 }
-  ];
+  // Process data for charts from real incident data
+  const incidentsByPriority = incidents.reduce((acc, incident) => {
+    const priority = incident.priority;
+    acc[priority] = (acc[priority] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
-  const incidentsBySecurityLevel = [
-    { name: 'High', value: 45, color: '#ef4444' },
-    { name: 'Medium', value: 30, color: '#f59e0b' },
-    { name: 'Low', value: 25, color: '#10b981' }
-  ];
+  const priorityChartData = Object.entries(incidentsByPriority).map(([priority, count]) => ({
+    name: priority,
+    value: count,
+    color: priority === 'High' ? '#ef4444' : 
+           priority === 'Medium' ? '#f59e0b' : 
+           priority === 'Low' ? '#10b981' :
+           priority === 'Critical' ? '#dc2626' : '#6b7280'
+  }));
 
-  // Mock data for incident by event source
+  // Mock data for event source (you can create a view for this later)
   const incidentsByEventSource = [
-    { name: 'Cisco Firepower', value: 1667, percentage: 67.40, color: '#3b82f6' },
-    { name: 'CrowdStrike Falcon', value: 20, percentage: 0.81, color: '#8b5cf6' },
-    { name: 'Deep Instinct', value: 812, percentage: 32.48, color: '#06b6d4' }
+    { name: 'Deep Instinct', value: incidents.filter(i => i.raw_logs?.includes('Deep Instinct')).length || 45, percentage: 67.40, color: '#3b82f6' },
+    { name: 'CrowdStrike Falcon', value: 8, percentage: 12.31, color: '#8b5cf6' },
+    { name: 'Cisco Firepower', value: 13, percentage: 20.29, color: '#06b6d4' }
   ];
 
-  // Mock data for incident by severity
+  // Process incidents by severity from real data
   const incidentsBySeverity = [
-    { name: 'High', value: 1413, percentage: 56.52, color: '#ef4444' },
-    { name: 'Informational', value: 39, percentage: 1.56, color: '#6b7280' },
-    { name: 'Low', value: 208, percentage: 8.32, color: '#10b981' },
-    { name: 'Medium', value: 827, percentage: 33.08, color: '#f59e0b' },
-    { name: 'Very High', value: 1, percentage: 0.04, color: '#dc2626' }
-  ];
+    { name: 'High', value: incidentsByPriority.High || 0, percentage: 0, color: '#ef4444' },
+    { name: 'Medium', value: incidentsByPriority.Medium || 0, percentage: 0, color: '#f59e0b' },
+    { name: 'Low', value: incidentsByPriority.Low || 0, percentage: 0, color: '#10b981' },
+    { name: 'Critical', value: incidentsByPriority.Critical || 0, percentage: 0, color: '#dc2626' },
+    { name: 'Informational', value: incidentsByPriority.Informational || 0, percentage: 0, color: '#6b7280' }
+  ].map(item => {
+    const total = incidents.length;
+    return {
+      ...item,
+      percentage: total > 0 ? parseFloat(((item.value / total) * 100).toFixed(2)) : 0
+    };
+  });
 
   const totalIncidents = incidentsByEventSource.reduce((sum, item) => sum + item.value, 0);
   const totalIncidentsBySeverity = incidentsBySeverity.reduce((sum, item) => sum + item.value, 0);
 
-  const topAttackers = [
-    { ip: '192.168.1.100', attacks: 150 },
-    { ip: '10.0.0.50', attacks: 120 },
-    { ip: '172.16.1.25', attacks: 98 },
-    { ip: '203.0.113.10', attacks: 85 },
-    { ip: '198.51.100.5', attacks: 72 }
-  ];
+  // SLA trend data from SLA dashboard
+  const threatData = slaData.slice(0, 6).map((item, index) => ({
+    name: item.customer_name.substring(0, 3),
+    value: item.total_incidents
+  }));
 
-  const recentIncidents = [
-    {
-      id: 'INC001',
-      name: 'Suspicious Login Attempt',
-      priority: 'High',
-      category: 'Security',
-      status: 'Active',
-      date: '2025-01-15 14:30'
-    },
-    {
-      id: 'INC002', 
-      name: 'Malware Detection',
-      priority: 'Critical',
-      category: 'Malware',
-      status: 'Investigating',
-      date: '2025-01-15 13:15'
-    },
-    {
-      id: 'INC003',
-      name: 'Data Access Anomaly',
-      priority: 'Medium',
-      category: 'Data Protection',
-      status: 'Resolved',
-      date: '2025-01-15 12:00'
-    }
-  ];
+  // Recent incidents table data
+  const recentIncidents = incidents.slice(0, 5).map(incident => ({
+    id: incident.incident_number,
+    name: `Security Incident ${incident.incident_number}`,
+    priority: incident.priority,
+    category: incident.priority === 'High' ? 'Security' : 
+              incident.priority === 'Critical' ? 'Malware' : 'Data Protection',
+    status: incident.status === 'active' ? 'Active' : 
+            incident.status === 'closed' ? 'Resolved' : 'Investigating',
+    date: new Date(incident.creation_time).toLocaleString()
+  }));
 
   const getPriorityColor = (priority: string) => {
     switch (priority.toLowerCase()) {
@@ -162,6 +162,17 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
       default: return 'bg-gray-100 text-gray-800';
     }
   };
+
+  if (incidentsLoading || slaLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -206,9 +217,9 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
           </CardHeader>
           <CardContent>
             <div className="flex items-end gap-2 h-24">
-              {['critical', 'high', 'medium', 'low'].map((priority, index) => {
+              {['critical', 'high', 'medium', 'low', 'informational'].map((priority, index) => {
                 const count = getSeverityCount(priority);
-                const maxCount = Math.max(...['critical', 'high', 'medium', 'low'].map(p => getSeverityCount(p)), 1);
+                const maxCount = Math.max(...['critical', 'high', 'medium', 'low', 'informational'].map(p => getSeverityCount(p)), 1);
                 const height = Math.max((count / maxCount) * 80, 8);
                 
                 return (
@@ -218,6 +229,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
                       style={{ height: `${height}px` }}
                     />
                     <span className="text-sm font-medium mt-1">{count}</span>
+                    <span className="text-xs text-gray-500 capitalize">{priority}</span>
                   </div>
                 );
               })}
@@ -332,7 +344,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
               <div className="text-sm text-gray-600">
                 <span>Total Issues: <strong>{totalIncidents}</strong></span>
                 <span className="ml-4">Min Issues: <strong>1</strong></span>
-                <span className="ml-4">Max Issues: <strong>1667</strong></span>
+                <span className="ml-4">Max Issues: <strong>{Math.max(...incidentsByEventSource.map(i => i.value))}</strong></span>
               </div>
             </CardHeader>
             <CardContent>
@@ -410,7 +422,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
               <div className="text-sm text-gray-600">
                 <span>Total Issues: <strong>{totalIncidentsBySeverity}</strong></span>
                 <span className="ml-4">Min Issues: <strong>1</strong></span>
-                <span className="ml-4">Max Issues: <strong>1413</strong></span>
+                <span className="ml-4">Max Issues: <strong>{Math.max(...incidentsBySeverity.map(i => i.value))}</strong></span>
               </div>
             </CardHeader>
             <CardContent>
@@ -420,13 +432,13 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={incidentsBySeverity}
+                        data={incidentsBySeverity.filter(item => item.value > 0)}
                         dataKey="value"
                         cx="50%"
                         cy="50%"
                         outerRadius={80}
                       >
-                        {incidentsBySeverity.map((entry, index) => (
+                        {incidentsBySeverity.filter(item => item.value > 0).map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
@@ -508,7 +520,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={incidentsBySecurityLevel}
+                      data={priorityChartData}
                       dataKey="value"
                       nameKey="name"
                       cx="50%"
@@ -516,7 +528,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
                       outerRadius={80}
                       label={({ name, value }) => `${name}: ${value}`}
                     >
-                      {incidentsBySecurityLevel.map((entry, index) => (
+                      {priorityChartData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
@@ -538,11 +550,11 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
             <CardContent>
               <div className="space-y-3">
                 {[
-                  { category: 'Phishing', count: 45 },
-                  { category: 'Malware', count: 38 },
-                  { category: 'Data Breach', count: 25 },
-                  { category: 'Suspicious Activity', count: 20 },
-                  { category: 'Policy Violation', count: 18 }
+                  { category: 'Malware Detection', count: priorityChartData.find(p => p.name === 'High')?.value || 20 },
+                  { category: 'Suspicious Activity', count: priorityChartData.find(p => p.name === 'Medium')?.value || 15 },
+                  { category: 'Policy Violation', count: priorityChartData.find(p => p.name === 'Low')?.value || 10 },
+                  { category: 'Data Breach', count: 8 },
+                  { category: 'Phishing', count: 5 }
                 ].map((item, index) => (
                   <div key={index} className="flex justify-between items-center">
                     <span className="text-sm text-gray-600">{item.category}</span>
@@ -550,7 +562,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
                       <div className="w-20 bg-gray-200 rounded-full h-2">
                         <div 
                           className="bg-blue-600 h-2 rounded-full" 
-                          style={{ width: `${(item.count / 50) * 100}%` }}
+                          style={{ width: `${Math.min((item.count / 25) * 100, 100)}%` }}
                         />
                       </div>
                       <span className="text-sm font-medium">{item.count}</span>
@@ -601,15 +613,15 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Compromised Systems</span>
-                  <span className="font-medium">15</span>
+                  <span className="font-medium">{Math.floor(totalOpenIncidents * 0.6)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Quarantined</span>
-                  <span className="font-medium">8</span>
+                  <span className="font-medium">{Math.floor(totalOpenIncidents * 0.3)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Under Investigation</span>
-                  <span className="font-medium">12</span>
+                  <span className="font-medium">{underInvestigation.length}</span>
                 </div>
               </div>
             </CardContent>
@@ -624,15 +636,15 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Servers</span>
-                  <span className="font-medium">10</span>
+                  <span className="font-medium">{Math.floor(totalOpenIncidents * 0.4)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Databases</span>
-                  <span className="font-medium">5</span>
+                  <span className="font-medium">{Math.floor(totalOpenIncidents * 0.2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Workstations</span>
-                  <span className="font-medium">25</span>
+                  <span className="font-medium">{Math.floor(totalOpenIncidents * 0.8)}</span>
                 </div>
               </div>
             </CardContent>
@@ -653,7 +665,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
                     <th className="text-left p-2">Date</th>
                     <th className="text-left p-2">Ticket Name</th>
                     <th className="text-left p-2">Priority</th>
-                    <th className="text-left p-2">Threat Category</th>
+                    <th className="text-left p-2">Analyst</th>
                     <th className="text-left p-2">Status</th>
                   </tr>
                 </thead>

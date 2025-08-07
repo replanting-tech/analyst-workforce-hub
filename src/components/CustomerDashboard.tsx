@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +14,8 @@ import {
   Shield, AlertTriangle, CheckCircle, Clock, TrendingUp, 
   Users, Activity, FileText, LogOut, Download 
 } from 'lucide-react';
+import { useIncidents } from '@/hooks/useIncidents';
+import { useIncidentsRealtime } from '@/hooks/useIncidentsRealtime';
 
 interface CustomerDashboardProps {
   onLogout: () => void;
@@ -22,14 +23,57 @@ interface CustomerDashboardProps {
 
 export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('thisMonth');
+  const [realtimeDetections, setRealtimeDetections] = useState<Array<{id: string, priority: string, timestamp: Date}>>([]);
+  
+  const { data: incidents = [] } = useIncidents();
+  
+  // Use real-time hook
+  useIncidentsRealtime();
 
-  // Sample data based on the dashboard design
-  const ticketStats = {
-    total: 146,
-    resolved: 999,
-    pending: 239,
-    compliance: 78
+  // Calculate incident statistics
+  const openIncidents = incidents.filter(incident => incident.status === 'active');
+  const closedIncidents = incidents.filter(incident => incident.status === 'closed');
+  const underInvestigation = openIncidents.filter(incident => incident.analyst_id);
+  const totalOpenIncidents = openIncidents.length;
+  const totalClosedIncidents = closedIncidents.length;
+  const totalFalsePositive = 6; // This would come from your data
+  const completionRate = totalClosedIncidents > 0 ? Math.round((totalClosedIncidents / (totalClosedIncidents + totalFalsePositive)) * 10) : 0;
+
+  // Mock real-time incident detection data
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (Math.random() > 0.7) { // 30% chance of new detection
+        const priorities = ['high', 'medium', 'low', 'critical'];
+        const newDetection = {
+          id: Math.random().toString(),
+          priority: priorities[Math.floor(Math.random() * priorities.length)],
+          timestamp: new Date()
+        };
+        setRealtimeDetections(prev => [...prev.slice(-5), newDetection]); // Keep last 6 detections
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const getSeverityColor = (priority: string) => {
+    switch (priority?.toLowerCase()) {
+      case 'critical': return 'bg-red-500';
+      case 'high': return 'bg-red-400';
+      case 'medium': return 'bg-yellow-400';
+      case 'low': return 'bg-blue-400';
+      default: return 'bg-gray-400';
+    }
   };
+
+  const getSeverityCount = (priority: string) => {
+    return realtimeDetections.filter(detection => detection.priority === priority).length;
+  };
+
+  const completionData = [
+    { name: 'Completed', value: completionRate, color: '#10b981' },
+    { name: 'Remaining', value: 10 - completionRate, color: '#e5e7eb' }
+  ];
 
   const threatData = [
     { name: 'Jan', value: 20 },
@@ -144,72 +188,109 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
       </div>
 
       <div className="max-w-7xl mx-auto p-6 space-y-6">
-        {/* Top Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Real-time Incident Detection */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Realtime incident detection</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-end gap-2 h-24">
+              {['critical', 'high', 'medium', 'low'].map((priority, index) => {
+                const count = getSeverityCount(priority);
+                const maxCount = Math.max(...['critical', 'high', 'medium', 'low'].map(p => getSeverityCount(p)), 1);
+                const height = Math.max((count / maxCount) * 80, 8);
+                
+                return (
+                  <div key={priority} className="flex flex-col items-center">
+                    <div
+                      className={`w-12 ${getSeverityColor(priority)} rounded-t transition-all duration-500`}
+                      style={{ height: `${height}px` }}
+                    />
+                    <span className="text-sm font-medium mt-1">{count}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Main Statistics Cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Incident Open */}
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600"># Ticket Statistics</p>
-                  <div className="mt-2 space-y-1">
-                    <p className="text-xs text-gray-500">Security Incident Count</p>
-                    <p className="text-xs text-gray-500">Under Investigation</p>
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold">Incident Open</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                <Card className="p-4">
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600 mb-2">under investigation</p>
+                    <p className="text-4xl font-bold">{underInvestigation.length}</p>
                   </div>
-                </div>
-                <div className="text-right">
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-blue-100 text-blue-800">Total Ticket</Badge>
-                    <span className="text-2xl font-bold">{ticketStats.total}</span>
+                </Card>
+                <Card className="p-4">
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600 mb-2">all incidents</p>
+                    <p className="text-4xl font-bold">{incidents.length}</p>
                   </div>
-                  <div className="mt-2 text-right">
-                    <span className="text-lg font-semibold">{ticketStats.compliance}%</span>
+                </Card>
+                <Card className="p-4 col-span-2">
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600 mb-2">total incident open</p>
+                    <p className="text-4xl font-bold">{totalOpenIncidents}</p>
                   </div>
-                </div>
+                </Card>
               </div>
             </CardContent>
           </Card>
 
+          {/* Incident Closed */}
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Shield className="w-8 h-8 text-blue-600" />
-                  <p className="mt-2 text-sm font-medium">Resolved Tickets</p>
-                </div>
-                <div className="text-right">
-                  <span className="text-3xl font-bold text-green-600">{ticketStats.resolved}</span>
-                  <p className="text-xs text-gray-500">This Month</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <AlertTriangle className="w-8 h-8 text-orange-600" />
-                  <p className="mt-2 text-sm font-medium">Pending Review</p>
-                </div>
-                <div className="text-right">
-                  <span className="text-3xl font-bold text-orange-600">{ticketStats.pending}</span>
-                  <p className="text-xs text-gray-500">Awaiting Response</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <TrendingUp className="w-8 h-8 text-green-600" />
-                  <p className="mt-2 text-sm font-medium">SLA Performance</p>
-                </div>
-                <div className="text-right">
-                  <span className="text-3xl font-bold text-green-600">{ticketStats.compliance}%</span>
-                  <Progress value={ticketStats.compliance} className="mt-2 w-20" />
-                </div>
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold">Incident Closed</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                <Card className="p-4">
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600 mb-2">total incident closed</p>
+                    <p className="text-4xl font-bold">{totalClosedIncidents}</p>
+                  </div>
+                </Card>
+                <Card className="p-4">
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600 mb-2">Completion</p>
+                    <p className="text-2xl font-bold">{completionRate}/10</p>
+                    <p className="text-sm text-gray-500 mt-1">pie chart</p>
+                    <div className="mt-2 w-16 h-16 mx-auto">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={completionData}
+                            dataKey="value"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={20}
+                            outerRadius={30}
+                            startAngle={90}
+                            endAngle={450}
+                          >
+                            {completionData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </Card>
+                <Card className="p-4 col-span-2">
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600 mb-2">total false positive</p>
+                    <p className="text-4xl font-bold">{totalFalsePositive}</p>
+                  </div>
+                </Card>
               </div>
             </CardContent>
           </Card>

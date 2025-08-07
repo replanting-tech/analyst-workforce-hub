@@ -33,7 +33,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
   // Calculate incident statistics
   const openIncidents = incidents.filter(incident => incident.status === 'active');
   const closedIncidents = incidents.filter(incident => incident.status === 'closed');
-  const underInvestigation = openIncidents.filter(incident => incident.analyst_id);
+  const underInvestigation = openIncidents.filter(incident => incident.analyst_code);
   const totalOpenIncidents = openIncidents.length;
   const totalClosedIncidents = closedIncidents.length;
   const totalFalsePositive = 6; // This would come from your data
@@ -90,13 +90,24 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
     { name: 'Low', value: 25, color: '#10b981' }
   ];
 
-  const incidentsByCategory = [
-    { category: 'Phishing', count: 45 },
-    { category: 'Malware', count: 38 },
-    { category: 'Data Breach', count: 25 },
-    { category: 'Suspicious Activity', count: 20 },
-    { category: 'Policy Violation', count: 18 }
+  // Mock data for incident by event source
+  const incidentsByEventSource = [
+    { name: 'Cisco Firepower', value: 1667, percentage: 67.40, color: '#3b82f6' },
+    { name: 'CrowdStrike Falcon', value: 20, percentage: 0.81, color: '#8b5cf6' },
+    { name: 'Deep Instinct', value: 812, percentage: 32.48, color: '#06b6d4' }
   ];
+
+  // Mock data for incident by severity
+  const incidentsBySeverity = [
+    { name: 'High', value: 1413, percentage: 56.52, color: '#ef4444' },
+    { name: 'Informational', value: 39, percentage: 1.56, color: '#6b7280' },
+    { name: 'Low', value: 208, percentage: 8.32, color: '#10b981' },
+    { name: 'Medium', value: 827, percentage: 33.08, color: '#f59e0b' },
+    { name: 'Very High', value: 1, percentage: 0.04, color: '#dc2626' }
+  ];
+
+  const totalIncidents = incidentsByEventSource.reduce((sum, item) => sum + item.value, 0);
+  const totalIncidentsBySeverity = incidentsBySeverity.reduce((sum, item) => sum + item.value, 0);
 
   const topAttackers = [
     { ip: '192.168.1.100', attacks: 150 },
@@ -296,6 +307,165 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
           </Card>
         </div>
 
+        {/* Incident Analytics Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Incident by Event Source */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <span className="text-blue-600">🔍</span>
+                  Incident by Event Source
+                </CardTitle>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <button className="p-1 hover:bg-gray-100 rounded">
+                    <Activity className="w-4 h-4" />
+                  </button>
+                  <button className="p-1 hover:bg-gray-100 rounded">
+                    <TrendingUp className="w-4 h-4" />
+                  </button>
+                  <button className="p-1 hover:bg-gray-100 rounded">
+                    <Download className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="text-sm text-gray-600">
+                <span>Total Issues: <strong>{totalIncidents}</strong></span>
+                <span className="ml-4">Min Issues: <strong>1</strong></span>
+                <span className="ml-4">Max Issues: <strong>1667</strong></span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-6">
+                {/* Pie Chart */}
+                <div className="w-48 h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={incidentsByEventSource}
+                        dataKey="value"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                      >
+                        {incidentsByEventSource.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                {/* Table */}
+                <div className="flex-1">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left border-b">
+                        <th className="pb-2">Event Source</th>
+                        <th className="pb-2">Incident</th>
+                        <th className="pb-2">Percentage</th>
+                      </tr>
+                    </thead>
+                    <tbody className="space-y-1">
+                      {incidentsByEventSource.map((item, index) => (
+                        <tr key={index} className="border-b last:border-b-0">
+                          <td className="py-2 flex items-center gap-2">
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: item.color }}
+                            />
+                            {item.name}
+                          </td>
+                          <td className="py-2">{item.value}</td>
+                          <td className="py-2">{item.percentage}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Incident by Severity */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <span className="text-blue-600">🔍</span>
+                  Incident by Severity
+                </CardTitle>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <button className="p-1 hover:bg-gray-100 rounded">
+                    <Activity className="w-4 h-4" />
+                  </button>
+                  <button className="p-1 hover:bg-gray-100 rounded">
+                    <TrendingUp className="w-4 h-4" />
+                  </button>
+                  <button className="p-1 hover:bg-gray-100 rounded">
+                    <Download className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="text-sm text-gray-600">
+                <span>Total Issues: <strong>{totalIncidentsBySeverity}</strong></span>
+                <span className="ml-4">Min Issues: <strong>1</strong></span>
+                <span className="ml-4">Max Issues: <strong>1413</strong></span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-6">
+                {/* Pie Chart */}
+                <div className="w-48 h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={incidentsBySeverity}
+                        dataKey="value"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                      >
+                        {incidentsBySeverity.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                {/* Table */}
+                <div className="flex-1">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left border-b">
+                        <th className="pb-2">Severity</th>
+                        <th className="pb-2">Incident</th>
+                        <th className="pb-2">Percentage</th>
+                      </tr>
+                    </thead>
+                    <tbody className="space-y-1">
+                      {incidentsBySeverity.map((item, index) => (
+                        <tr key={index} className="border-b last:border-b-0">
+                          <td className="py-2 flex items-center gap-2">
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: item.color }}
+                            />
+                            {item.name}
+                          </td>
+                          <td className="py-2">{item.value}</td>
+                          <td className="py-2">{item.percentage}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Threat Trend Chart */}
@@ -367,7 +537,13 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {incidentsByCategory.map((item, index) => (
+                {[
+                  { category: 'Phishing', count: 45 },
+                  { category: 'Malware', count: 38 },
+                  { category: 'Data Breach', count: 25 },
+                  { category: 'Suspicious Activity', count: 20 },
+                  { category: 'Policy Violation', count: 18 }
+                ].map((item, index) => (
                   <div key={index} className="flex justify-between items-center">
                     <span className="text-sm text-gray-600">{item.category}</span>
                     <div className="flex items-center gap-2">
@@ -392,7 +568,13 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {topAttackers.map((attacker, index) => (
+                {[
+                  { ip: '192.168.1.100', attacks: 150 },
+                  { ip: '10.0.0.50', attacks: 120 },
+                  { ip: '172.16.1.25', attacks: 98 },
+                  { ip: '203.0.113.10', attacks: 85 },
+                  { ip: '198.51.100.5', attacks: 72 }
+                ].map((attacker, index) => (
                   <div key={index} className="flex justify-between items-center">
                     <span className="text-sm font-mono text-gray-600">{attacker.ip}</span>
                     <div className="flex items-center gap-2">

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Analyst } from '@/hooks/useAnalysts'; // Import Analyst interface
+import { Analyst } from '@/hooks/useAnalysts';
 import {
   Dialog,
   DialogContent,
@@ -30,15 +30,17 @@ import {
 import { Users, Search, Plus, Edit, UserCheck, UserX, Activity } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAnalysts } from '@/hooks/useAnalysts';
-import { useToast } from '@/components/ui/use-toast'; // Import useToast
+import { useToast } from '@/components/ui/use-toast';
+import { AddAnalystForm } from '@/components/forms/AddAnalystForm';
 
 export function AnalystManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [isAddAnalystDialogOpen, setIsAddAnalystDialogOpen] = useState(false);
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
   const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false);
   const [isResetLinkDialogOpen, setIsResetLinkDialogOpen] = useState(false);
-  const [isMagicLinkDialogOpen, setIsMagicLinkDialogOpen] = useState(false); // New state for magic link dialog
+  const [isMagicLinkDialogOpen, setIsMagicLinkDialogOpen] = useState(false);
   const [resetPasswordLink, setResetPasswordLink] = useState('');
   const [selectedAnalyst, setSelectedAnalyst] = useState<Analyst | null>(null);
   
@@ -52,7 +54,7 @@ export function AnalystManagement() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhtb3pwYmV3amtlaXN2cGZ6ZWNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyMDM3MDMsImV4cCI6MjA2Nzc3OTcwM30.goD6H9fLQPljKpifLlLIU6_Oo4jJO7b2-8GlkeqkiKA`, // SUPABASE_PUBLISHABLE_KEY
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhtb3pwYmV3amtlaXN2cGZ6ZWNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyMDM3MDMsImV4cCI6MjA2Nzc3OTcwM30.goD6H9fLQPljKpifLlLIU6_Oo4jJO7b2-8GlkeqkiKA`,
         },
         body: payload,
       });
@@ -62,7 +64,6 @@ export function AnalystManagement() {
       if (!response.ok) {
         const errorData = await response.json();
         console.error(`Error registering user for ${analyst.email}:`, errorData.error);
-        // Optionally show a toast notification for error
         return;
       }
 
@@ -74,7 +75,7 @@ export function AnalystManagement() {
           description: `${analyst.name} has been successfully added as a user.`,
           variant: "default",
         });
-        refetch(); // Refetch analysts to update the UI
+        refetch();
       }
     } catch (fetchError) {
       console.error(`Network error registering user for ${analyst.email}:`, fetchError);
@@ -137,7 +138,6 @@ export function AnalystManagement() {
 
   const handleSendMagicLink = async (analyst: Analyst) => {
     try {
-      // First generate the reset link
       const resetResponse = await fetch('https://xmozpbewjkeisvpfzeca.supabase.co/functions/v1/reset-user-password', {
         method: 'POST',
         headers: {
@@ -156,7 +156,6 @@ export function AnalystManagement() {
         throw new Error('Invalid reset link response');
       }
 
-      // Then send the email with the reset link
       const emailResponse = await fetch('https://xmozpbewjkeisvpfzeca.supabase.co/functions/v1/send-reset-password-email', {
         method: 'POST',
         headers: {
@@ -199,7 +198,6 @@ export function AnalystManagement() {
     return matchesSearch && matchesStatus;
   });
 
-  // Calculate stats
   const totalAnalysts = analysts.length;
   const availableAnalysts = analysts.filter(a => a.availability === 'available').length;
   const busyAnalysts = analysts.filter(a => a.availability === 'busy').length;
@@ -254,7 +252,10 @@ export function AnalystManagement() {
           <h2 className="text-2xl font-bold text-gray-900">Analyst Management</h2>
           <p className="text-gray-600">Manage security analysts and their assignments</p>
         </div>
-        <Button className="bg-blue-600 hover:bg-blue-700">
+        <Button 
+          className="bg-blue-600 hover:bg-blue-700"
+          onClick={() => setIsAddAnalystDialogOpen(true)}
+        >
           <Plus className="w-4 h-4 mr-2" />
           Add Analyst
         </Button>
@@ -448,6 +449,25 @@ export function AnalystManagement() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Analyst Dialog */}
+      <Dialog open={isAddAnalystDialogOpen} onOpenChange={setIsAddAnalystDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Analyst</DialogTitle>
+            <DialogDescription>
+              Create a new analyst profile in the system.
+            </DialogDescription>
+          </DialogHeader>
+          <AddAnalystForm
+            onSuccess={() => {
+              setIsAddAnalystDialogOpen(false);
+              refetch();
+            }}
+            onCancel={() => setIsAddAnalystDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Add User Confirmation Dialog */}
       <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>

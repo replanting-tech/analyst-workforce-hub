@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { 
   Table, 
@@ -11,67 +12,52 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
-import { Target, Clock, AlertTriangle, Settings, Plus, Edit, Building2, RefreshCw } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Settings, Search, Plus, Edit, Clock, Target } from 'lucide-react';
 import { useSLAConfig } from '@/hooks/useSLAConfig';
+import { AddSLAConfigForm } from '@/components/forms/AddSLAConfigForm';
 
 export function SLAConfiguration() {
-  const [selectedCustomer, setSelectedCustomer] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isAddSLAConfigDialogOpen, setIsAddSLAConfigDialogOpen] = useState(false);
   
-  const { data: slaConfigs = [], isLoading, error, refetch } = useSLAConfig();
+  const { data: slaConfigs = [], isLoading, refetch } = useSLAConfig();
 
-  // Get unique customers for filter
-  const customers = Array.from(new Set(slaConfigs.map(config => config.customer_name)));
+  const filteredSLAConfigs = slaConfigs.filter(config =>
+    config.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    config.workspace_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    config.priority.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Group configs by priority for stats
+  const priorityStats = slaConfigs.reduce((acc, config) => {
+    acc[config.priority] = (acc[config.priority] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
   const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'Very High': return 'bg-red-100 text-red-800 border-red-200';
-      case 'High': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'Medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'Low': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'Informational': return 'bg-gray-100 text-gray-800 border-gray-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    switch (priority.toLowerCase()) {
+      case 'critical': return 'bg-red-100 text-red-800';
+      case 'high': return 'bg-orange-100 text-orange-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      case 'low': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   const formatResolutionTime = (minutes: number) => {
-    if (minutes < 60) {
-      return `${minutes}m`;
-    } else if (minutes < 1440) {
-      const hours = Math.floor(minutes / 60);
-      const remainingMinutes = minutes % 60;
-      return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
-    } else {
-      const days = Math.floor(minutes / 1440);
-      const remainingHours = Math.floor((minutes % 1440) / 60);
-      return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`;
-    }
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    if (hours === 0) return `${remainingMinutes}m`;
+    if (remainingMinutes === 0) return `${hours}h`;
+    return `${hours}h ${remainingMinutes}m`;
   };
-
-  const getResolutionTimeColor = (minutes: number) => {
-    if (minutes <= 60) return 'text-red-600 bg-red-50';
-    if (minutes <= 240) return 'text-orange-600 bg-orange-50';
-    if (minutes <= 480) return 'text-yellow-600 bg-yellow-50';
-    return 'text-green-600 bg-green-50';
-  };
-
-  const filteredConfigs = slaConfigs.filter(config => 
-    selectedCustomer === 'all' || config.customer_name === selectedCustomer
-  );
-
-  // Calculate stats
-  const totalConfigs = slaConfigs.length;
-  const uniqueCustomers = customers.length;
-  const avgResolutionTime = slaConfigs.length > 0 
-    ? slaConfigs.reduce((sum, config) => sum + config.resolution_minutes, 0) / slaConfigs.length 
-    : 0;
-  const criticalSLAs = slaConfigs.filter(config => config.resolution_minutes <= 60).length;
 
   if (isLoading) {
     return (
@@ -89,36 +75,21 @@ export function SLAConfiguration() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <div className="text-center text-red-600">
-          <Settings className="mx-auto h-12 w-12 mb-4" />
-          <h3 className="text-lg font-medium">Error loading SLA configuration</h3>
-          <p className="text-sm">Please try refreshing the page</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">SLA Configuration</h2>
-          <p className="text-gray-600">Configure Service Level Agreement targets per customer and priority</p>
+          <p className="text-gray-600">Manage Service Level Agreement settings for customers</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
-          </Button>
-          <Button className="bg-blue-600 hover:bg-blue-700">
-            <Plus className="w-4 h-4 mr-2" />
-            Add SLA Config
-          </Button>
-        </div>
+        <Button 
+          className="bg-blue-600 hover:bg-blue-700"
+          onClick={() => setIsAddSLAConfigDialogOpen(true)}
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Add SLA Config
+        </Button>
       </div>
 
       {/* Quick Stats */}
@@ -127,8 +98,8 @@ export function SLAConfiguration() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Configurations</p>
-                <p className="text-2xl font-bold text-blue-600">{totalConfigs}</p>
+                <p className="text-sm font-medium text-gray-600">Total Configs</p>
+                <p className="text-2xl font-bold text-blue-600">{slaConfigs.length}</p>
               </div>
               <Settings className="w-8 h-8 text-blue-600" />
             </div>
@@ -139,10 +110,10 @@ export function SLAConfiguration() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Customers Configured</p>
-                <p className="text-2xl font-bold text-green-600">{uniqueCustomers}</p>
+                <p className="text-sm font-medium text-gray-600">Critical Priority</p>
+                <p className="text-2xl font-bold text-red-600">{priorityStats['Critical'] || 0}</p>
               </div>
-              <Building2 className="w-8 h-8 text-green-600" />
+              <Target className="w-8 h-8 text-red-600" />
             </div>
           </CardContent>
         </Card>
@@ -151,8 +122,8 @@ export function SLAConfiguration() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Avg Resolution Time</p>
-                <p className="text-2xl font-bold text-orange-600">{formatResolutionTime(avgResolutionTime)}</p>
+                <p className="text-sm font-medium text-gray-600">High Priority</p>
+                <p className="text-2xl font-bold text-orange-600">{priorityStats['High'] || 0}</p>
               </div>
               <Clock className="w-8 h-8 text-orange-600" />
             </div>
@@ -163,34 +134,33 @@ export function SLAConfiguration() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Critical SLAs</p>
-                <p className="text-2xl font-bold text-red-600">{criticalSLAs}</p>
+                <p className="text-sm font-medium text-gray-600">Avg Resolution</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {slaConfigs.length > 0
+                    ? formatResolutionTime(Math.round(slaConfigs.reduce((acc, c) => acc + c.resolution_minutes, 0) / slaConfigs.length))
+                    : '0m'
+                  }
+                </p>
               </div>
-              <AlertTriangle className="w-8 h-8 text-red-600" />
+              <Clock className="w-8 h-8 text-green-600" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* SLA Configuration Table */}
+      {/* SLA Config Table */}
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
             <CardTitle>SLA Configurations</CardTitle>
-            <div className="flex gap-4 items-center">
-              <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Filter by customer" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Customers</SelectItem>
-                  {customers.map(customer => (
-                    <SelectItem key={customer} value={customer}>
-                      {customer}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                placeholder="Search SLA configs..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 w-64"
+              />
             </div>
           </div>
         </CardHeader>
@@ -202,21 +172,24 @@ export function SLAConfiguration() {
                 <TableRow>
                   <TableHead>Customer</TableHead>
                   <TableHead>Workspace</TableHead>
-                  <TableHead>Priority Level</TableHead>
-                  <TableHead>Resolution Target</TableHead>
-                  <TableHead>Last Updated</TableHead>
+                  <TableHead>Priority</TableHead>
+                  <TableHead>Resolution Time</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Updated</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredConfigs.map((config) => (
+                {filteredSLAConfigs.map((config) => (
                   <TableRow key={config.id}>
                     <TableCell>
                       <div className="flex items-center space-x-3">
-                        <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
-                          <Building2 className="w-3 h-3 text-blue-600" />
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <Target className="w-4 h-4 text-blue-600" />
                         </div>
-                        <span className="font-medium">{config.customer_name}</span>
+                        <div>
+                          <p className="font-medium">{config.customer_name}</p>
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -231,11 +204,13 @@ export function SLAConfiguration() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-2">
-                        <Badge className={getResolutionTimeColor(config.resolution_minutes)}>
-                          {formatResolutionTime(config.resolution_minutes)}
-                        </Badge>
                         <Clock className="w-4 h-4 text-gray-400" />
+                        <span className="font-medium">{formatResolutionTime(config.resolution_minutes)}</span>
+                        <span className="text-sm text-gray-500">({config.resolution_minutes} min)</span>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {new Date(config.created_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
                       {new Date(config.updated_at).toLocaleDateString()}
@@ -246,7 +221,7 @@ export function SLAConfiguration() {
                           <Edit className="w-4 h-4" />
                         </Button>
                         <Button variant="ghost" size="sm">
-                          Configure
+                          View Details
                         </Button>
                       </div>
                     </TableCell>
@@ -258,111 +233,46 @@ export function SLAConfiguration() {
         </CardContent>
       </Card>
 
-      {/* SLA Templates & Guidelines */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Target className="mr-2 h-5 w-5 text-blue-600" />
-              SLA Templates
-            </CardTitle>
-            <CardDescription>Predefined SLA configurations for different service tiers</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="border rounded-lg p-4">
-                <div className="flex justify-between items-center mb-2">
-                  <h4 className="font-medium">Enterprise Tier</h4>
-                  <Badge variant="outline">Template</Badge>
-                </div>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Very High:</span>
-                    <span className="font-medium">1 hour</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">High:</span>
-                    <span className="font-medium">4 hours</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Medium:</span>
-                    <span className="font-medium">24 hours</span>
-                  </div>
-                </div>
-                <Button variant="outline" size="sm" className="w-full mt-3">
-                  Apply Template
-                </Button>
-              </div>
+      {/* Add SLA Config Dialog */}
+      <Dialog open={isAddSLAConfigDialogOpen} onOpenChange={setIsAddSLAConfigDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add SLA Configuration</DialogTitle>
+            <DialogDescription>
+              Create a new SLA configuration for a customer and priority level.
+            </DialogDescription>
+          </DialogHeader>
+          <AddSLAConfigForm
+            onSuccess={() => {
+              setIsAddSLAConfigDialogOpen(false);
+              refetch();
+            }}
+            onCancel={() => setIsAddSLAConfigDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
 
-              <div className="border rounded-lg p-4">
-                <div className="flex justify-between items-center mb-2">
-                  <h4 className="font-medium">Standard Tier</h4>
-                  <Badge variant="outline">Template</Badge>
+      {/* Priority Distribution */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Priority Distribution</CardTitle>
+          <CardDescription>SLA configurations by priority level</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {Object.entries(priorityStats).map(([priority, count]) => (
+              <div key={priority} className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Badge className={getPriorityColor(priority)}>
+                    {priority}
+                  </Badge>
                 </div>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">High:</span>
-                    <span className="font-medium">8 hours</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Medium:</span>
-                    <span className="font-medium">48 hours</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Low:</span>
-                    <span className="font-medium">72 hours</span>
-                  </div>
-                </div>
-                <Button variant="outline" size="sm" className="w-full mt-3">
-                  Apply Template
-                </Button>
+                <span className="font-medium">{count} configurations</span>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <AlertTriangle className="mr-2 h-5 w-5 text-orange-600" />
-              SLA Guidelines
-            </CardTitle>
-            <CardDescription>Best practices and recommendations</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="p-3 bg-blue-50 rounded-lg">
-                <h4 className="font-medium text-blue-900 mb-1">Priority Definitions</h4>
-                <ul className="text-sm text-blue-800 space-y-1">
-                  <li>• Very High: Critical business impact</li>
-                  <li>• High: Significant business impact</li>
-                  <li>• Medium: Moderate business impact</li>
-                  <li>• Low: Minimal business impact</li>
-                </ul>
-              </div>
-
-              <div className="p-3 bg-green-50 rounded-lg">
-                <h4 className="font-medium text-green-900 mb-1">Recommended Targets</h4>
-                <ul className="text-sm text-green-800 space-y-1">
-                  <li>• Critical incidents: &lt; 1 hour</li>
-                  <li>• High priority: &lt; 4 hours</li>
-                  <li>• Standard incidents: &lt; 24 hours</li>
-                  <li>• Consider timezone differences</li>
-                </ul>
-              </div>
-
-              <div className="p-3 bg-orange-50 rounded-lg">
-                <h4 className="font-medium text-orange-900 mb-1">Alert Thresholds</h4>
-                <ul className="text-sm text-orange-800 space-y-1">
-                  <li>• Warning: 80% of SLA time elapsed</li>
-                  <li>• Critical: 95% of SLA time elapsed</li>
-                  <li>• Breach: SLA time exceeded</li>
-                </ul>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

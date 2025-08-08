@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,15 +11,24 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Building2, Search, Plus, Edit, Globe, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useIncidents } from '@/hooks/useIncidents';
 import { useSLADashboard } from '@/hooks/useSLADashboard';
+import { AddCustomerForm } from '@/components/forms/AddCustomerForm';
 
 export function CustomerManagement() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isAddCustomerDialogOpen, setIsAddCustomerDialogOpen] = useState(false);
   
-  const { data: customers = [], isLoading: customersLoading } = useCustomers();
+  const { data: customers = [], isLoading: customersLoading, refetch } = useCustomers();
   const { data: incidents = [], isLoading: incidentsLoading } = useIncidents();
   const { data: slaDashboard = [], isLoading: slaLoading } = useSLADashboard();
 
@@ -29,13 +37,11 @@ export function CustomerManagement() {
     customer.workspace_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Calculate customer stats
   const getCustomerStats = (customerId: string, customerName: string) => {
     const customerIncidents = incidents.filter(i => i.customer_name === customerName);
     const activeIncidents = customerIncidents.filter(i => i.status === 'active').length;
     const totalIncidents = customerIncidents.length;
     
-    // Get SLA compliance from dashboard
     const slaData = slaDashboard.filter(s => s.customer_name === customerName);
     const avgCompliance = slaData.length > 0 
       ? slaData.reduce((acc, s) => acc + s.sla_compliance_percentage, 0) / slaData.length
@@ -48,7 +54,6 @@ export function CustomerManagement() {
     };
   };
 
-  // Calculate totals
   const totalCustomers = customers.length;
   const totalIncidents = incidents.length;
   const avgSLACompliance = slaDashboard.length > 0 
@@ -68,7 +73,6 @@ export function CustomerManagement() {
     return 'Other';
   };
 
-  // Group customers by region
   const regionStats = customers.reduce((acc, customer) => {
     const region = getTimezoneRegion(customer.timezone);
     acc[region] = (acc[region] || 0) + 1;
@@ -99,7 +103,10 @@ export function CustomerManagement() {
           <h2 className="text-2xl font-bold text-gray-900">Customer Management</h2>
           <p className="text-gray-600">Manage customer accounts and configurations</p>
         </div>
-        <Button className="bg-blue-600 hover:bg-blue-700">
+        <Button 
+          className="bg-blue-600 hover:bg-blue-700"
+          onClick={() => setIsAddCustomerDialogOpen(true)}
+        >
           <Plus className="w-4 h-4 mr-2" />
           Add Customer
         </Button>
@@ -248,6 +255,25 @@ export function CustomerManagement() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Customer Dialog */}
+      <Dialog open={isAddCustomerDialogOpen} onOpenChange={setIsAddCustomerDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Customer</DialogTitle>
+            <DialogDescription>
+              Create a new customer account in the system.
+            </DialogDescription>
+          </DialogHeader>
+          <AddCustomerForm
+            onSuccess={() => {
+              setIsAddCustomerDialogOpen(false);
+              refetch();
+            }}
+            onCancel={() => setIsAddCustomerDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Customer Insights */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

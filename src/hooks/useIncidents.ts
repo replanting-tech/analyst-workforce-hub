@@ -36,6 +36,7 @@ export const useIncidents = () => {
       const { data, error } = await supabase
         .from('v_incident_sla_details')
         .select('*')
+        .limit(10)
         .order('creation_time', { ascending: false });
 
       if (error) {
@@ -55,6 +56,7 @@ export const useIncidentById = (incidentId: string) => {
       const { data, error } = await supabase
         .from('v_incident_sla_details')
         .select('*')
+        .limit(10)
         .eq('incident_id', incidentId)
         .maybeSingle();
 

@@ -351,22 +351,27 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
               <div className="flex gap-6">
                 {/* Pie Chart */}
                 <div className="w-48 h-48">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={incidentsByEventSource}
-                        dataKey="value"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={80}
-                      >
-                        {incidentsByEventSource.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <ChartContainer
+                    config={{ value: { label: "Incidents", color: "#3b82f6" } }}
+                    className="h-full"
+                  >
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={incidentsByEventSource}
+                          dataKey="value"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                        >
+                          {incidentsByEventSource.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </ChartContainer>
                 </div>
                 {/* Table */}
                 <div className="flex-1">
@@ -429,22 +434,27 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
               <div className="flex gap-6">
                 {/* Pie Chart */}
                 <div className="w-48 h-48">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={incidentsBySeverity.filter(item => item.value > 0)}
-                        dataKey="value"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={80}
-                      >
-                        {incidentsBySeverity.filter(item => item.value > 0).map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <ChartContainer
+                    config={{ value: { label: "Incidents", color: "#3b82f6" } }}
+                    className="h-full"
+                  >
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={incidentsBySeverity.filter(item => item.value > 0)}
+                          dataKey="value"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                        >
+                          {incidentsBySeverity.filter(item => item.value > 0).map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </ChartContainer>
                 </div>
                 {/* Table */}
                 <div className="flex-1">

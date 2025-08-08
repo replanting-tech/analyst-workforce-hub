@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,14 +35,15 @@ import { useToast } from '@/components/ui/use-toast'; // Import useToast
 export function AnalystManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false); // State for Add User dialog visibility
-  const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false); // State for Reset Password dialog visibility
-  const [isResetLinkDialogOpen, setIsResetLinkDialogOpen] = useState(false); // State for Reset Link display dialog
-  const [resetPasswordLink, setResetPasswordLink] = useState(''); // State to store the generated reset link
-  const [selectedAnalyst, setSelectedAnalyst] = useState<Analyst | null>(null); // State for selected analyst
+  const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
+  const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false);
+  const [isResetLinkDialogOpen, setIsResetLinkDialogOpen] = useState(false);
+  const [isMagicLinkDialogOpen, setIsMagicLinkDialogOpen] = useState(false); // New state for magic link dialog
+  const [resetPasswordLink, setResetPasswordLink] = useState('');
+  const [selectedAnalyst, setSelectedAnalyst] = useState<Analyst | null>(null);
   
   const { data: analysts = [], isLoading, error, refetch } = useAnalysts();
-  const { toast } = useToast(); // Initialize useToast
+  const { toast } = useToast();
 
   const handleAddAsUser = async (analyst: Analyst) => {
     const payload = JSON.stringify({ email: analyst.email, name: analyst.name });
@@ -92,7 +92,7 @@ export function AnalystManagement() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhtb3pwYmV3amtlaXN2cGZ6ZWNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyMDM3MDMsImV4cCI6MjA2Nzc3OTcwM30.goD6H9fLQPljKpifLlLIU6_Oo4jJO7b2-8GlkeqkiKA`, // SUPABASE_PUBLISHABLE_KEY
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhtb3pwYmV3amtlaXN2cGZ6ZWNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyMDM3MDMsImV4cCI6MjA2Nzc3OTcwM30.goD6H9fLQPljKpifLlLIU6_Oo4jJO7b2-8GlkeqkiKA`,
         },
         body: JSON.stringify({ email: analyst.email }),
       });
@@ -112,7 +112,7 @@ export function AnalystManagement() {
       if (success && resetLink) {
         console.log(`Password reset link generated for ${analyst.email}:`, resetLink);
         setResetPasswordLink(resetLink);
-        setIsResetLinkDialogOpen(true); // Open the dialog to show the link
+        setIsResetLinkDialogOpen(true);
         toast({
           title: "Password Reset Link Generated!",
           description: `A reset link has been generated for ${analyst.name}.`,
@@ -130,6 +130,60 @@ export function AnalystManagement() {
       toast({
         title: "Error",
         description: `Network error while generating password reset link for ${analyst.name}.`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSendMagicLink = async (analyst: Analyst) => {
+    try {
+      // First generate the reset link
+      const resetResponse = await fetch('https://xmozpbewjkeisvpfzeca.supabase.co/functions/v1/reset-user-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhtb3pwYmV3amtlaXN2cGZ6ZWNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyMDM3MDMsImV4cCI6MjA2Nzc3OTcwM30.goD6H9fLQPljKpifLlLIU6_Oo4jJO7b2-8GlkeqkiKA`,
+        },
+        body: JSON.stringify({ email: analyst.email }),
+      });
+
+      if (!resetResponse.ok) {
+        throw new Error('Failed to generate reset link');
+      }
+
+      const { success, resetLink } = await resetResponse.json();
+      if (!success || !resetLink) {
+        throw new Error('Invalid reset link response');
+      }
+
+      // Then send the email with the reset link
+      const emailResponse = await fetch('https://xmozpbewjkeisvpfzeca.supabase.co/functions/v1/send-reset-password-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhtb3pwYmV3amtlaXN2cGZ6ZWNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyMDM3MDMsImV4cCI6MjA2Nzc3OTcwM30.goD6H9fLQPljKpifLlLIU6_Oo4jJO7b2-8GlkeqkiKA`,
+        },
+        body: JSON.stringify({ 
+          email: analyst.email,
+          resetLink: resetLink 
+        }),
+      });
+
+      if (!emailResponse.ok) {
+        throw new Error('Failed to send email');
+      }
+
+      const emailResult = await emailResponse.json();
+      toast({
+        title: "Magic Link Sent!",
+        description: `Password reset email has been sent to ${analyst.name} and system administrator.`,
+        variant: "default",
+      });
+    } catch (error) {
+      console.error('Error sending magic link:', error);
+      toast({
+        title: "Error",
+        description: `Failed to send magic link to ${analyst.name}. Please try again.`,
         variant: "destructive",
       });
     }
@@ -342,7 +396,7 @@ export function AnalystManagement() {
                     <TableCell>{analyst.today_closed_incidents}</TableCell>
                     <TableCell>{analyst.today_total_incidents}</TableCell>
                     <TableCell>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                         <Button variant="ghost" size="sm">
                           <Edit className="w-4 h-4" />
                         </Button>
@@ -362,16 +416,28 @@ export function AnalystManagement() {
                           </Button>
                         )}
                         {analyst.isRegisteredUser && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedAnalyst(analyst);
-                              setIsResetPasswordDialogOpen(true);
-                            }}
-                          >
-                            Reset Password
-                          </Button>
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedAnalyst(analyst);
+                                setIsResetPasswordDialogOpen(true);
+                              }}
+                            >
+                              Reset Password
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedAnalyst(analyst);
+                                setIsMagicLinkDialogOpen(true);
+                              }}
+                            >
+                              Send Magic Link
+                            </Button>
+                          </>
                         )}
                       </div>
                     </TableCell>
@@ -409,20 +475,60 @@ export function AnalystManagement() {
       <Dialog open={isResetPasswordDialogOpen} onOpenChange={setIsResetPasswordDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm Reset Password</DialogTitle>
+            <DialogTitle>Reset Password Options</DialogTitle>
             <DialogDescription>
-              Are you sure you want to send a password reset link to <strong>{selectedAnalyst?.name}</strong> ({selectedAnalyst?.email})?
-              An email with the reset link will be sent to their registered email address.
+              Choose how you want to reset the password for <strong>{selectedAnalyst?.name}</strong> ({selectedAnalyst?.email}):
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-4">
+            <Button
+              onClick={() => {
+                if (selectedAnalyst) {
+                  handleResetPassword(selectedAnalyst);
+                }
+                setIsResetPasswordDialogOpen(false);
+              }}
+              className="w-full"
+            >
+              Generate Reset Link (Manual)
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedAnalyst) {
+                  handleSendMagicLink(selectedAnalyst);
+                }
+                setIsResetPasswordDialogOpen(false);
+              }}
+              variant="outline"
+              className="w-full"
+            >
+              Send Magic Link via Email
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsResetPasswordDialogOpen(false)}>Cancel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Magic Link Confirmation Dialog */}
+      <Dialog open={isMagicLinkDialogOpen} onOpenChange={setIsMagicLinkDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send Magic Link</DialogTitle>
+            <DialogDescription>
+              This will send a password reset email to <strong>{selectedAnalyst?.name}</strong> ({selectedAnalyst?.email}) 
+              and also to harry.sunaryo@compnet.co.id as a backup. The email will contain a secure link to reset their password.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsResetPasswordDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setIsMagicLinkDialogOpen(false)}>Cancel</Button>
             <Button onClick={() => {
               if (selectedAnalyst) {
-                handleResetPassword(selectedAnalyst);
+                handleSendMagicLink(selectedAnalyst);
               }
-              setIsResetPasswordDialogOpen(false);
-            }}>Send Reset Link</Button>
+              setIsMagicLinkDialogOpen(false);
+            }}>Send Magic Link</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

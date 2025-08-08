@@ -1,13 +1,13 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.44.0'
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
 serve(async (req) => {
   const corsHeaders = {
-    'Access-Control-Allow-Origin': '*', // Allow all origins for development
+    'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   };
 
-  // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -38,7 +38,7 @@ serve(async (req) => {
       type: 'password_reset',
       email: email,
       options: {
-        redirectTo: Deno.env.get('PASSWORD_RESET_REDIRECT_TO') || 'http://localhost:3000/auth/update-password', // Or your desired redirect URL
+        redirectTo: Deno.env.get('PASSWORD_RESET_REDIRECT_TO') || `${new URL(req.url).origin}/auth/reset-password`,
       },
     });
 

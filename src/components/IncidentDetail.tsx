@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import RichTextEditor from "./RichTextEditor";
+import IncidentDetailsExtraction from "./IncidentDetailsExtraction";
 import {
   Dialog,
   DialogContent,
@@ -50,7 +51,6 @@ import {
 interface IncidentDetailProps {
   incidentId: string;
 }
-
 
 export function IncidentDetail({ incidentId }: IncidentDetailProps) {
   const { data: incident, isLoading, error } = useIncidentById(incidentId);
@@ -161,10 +161,11 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
       }
 
       alert("Change request submitted successfully!");
-      // Close the dialog
-      document
-        .querySelector('[data-state="open"] button[aria-label="Close"]')
-        ?.click();
+      // Close the dialog by finding the close button and triggering it
+      const closeButton = document.querySelector('[data-state="open"] [data-dialog-close]') as HTMLElement;
+      if (closeButton) {
+        closeButton.click();
+      }
     } catch (err) {
       console.error("Error submitting request change:", err);
       alert(
@@ -308,6 +309,13 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
             </CardContent>
           </Card>
 
+          {/* Incident Details Extraction */}
+          <IncidentDetailsExtraction 
+            rawLogs={incident.raw_logs} 
+            creationTime={incident.creation_time}
+            priority={incident.priority}
+          />
+
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-lg">Raw Logs</CardTitle>
@@ -329,7 +337,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
           </Card>
         </div>
 
-        {/* Right Column - Raw Logs */}
+        {/* Right Column - Sidebar */}
         <div className="col-span-3 space-y-6">
           {/* Basic Information */}
           <Card>
@@ -387,16 +395,6 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                     {incident.incident_number}
                   </p>
                 </div>
-                {/* <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Last Status Change
-                  </p>
-                  <p className="text-sm">
-                    {incident.status_updated_time
-                      ? formatDateTime(incident.status_updated_time)
-                      : formatDateTime(incident.creation_time)}
-                  </p>
-                </div> */}
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">
                     Priority
@@ -487,13 +485,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                         <Button
                           type="button"
                           variant="outline"
-                          onClick={() =>
-                            document
-                              .querySelector(
-                                '[data-state="open"] button[aria-label="Close"]'
-                              )
-                              ?.click()
-                          }
+                          data-dialog-close
                         >
                           Cancel
                         </Button>

@@ -27,6 +27,7 @@ export interface Incident {
   updated_at: string;
   incident_url?: string;
   raw_logs?: string;
+  incident_classification?: string | null;
 }
 
 export const useIncidents = () => {

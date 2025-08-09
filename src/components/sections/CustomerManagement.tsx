@@ -23,10 +23,13 @@ import { useCustomers } from '@/hooks/useCustomers';
 import { useIncidents } from '@/hooks/useIncidents';
 import { useSLADashboard } from '@/hooks/useSLADashboard';
 import { AddCustomerForm } from '@/components/forms/AddCustomerForm';
+import { EditCustomerForm } from '@/components/forms/EditCustomerForm';
+import type { Customer } from '@/hooks/useCustomers';
 
 export function CustomerManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddCustomerDialogOpen, setIsAddCustomerDialogOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   
   const { data: customers = [], isLoading: customersLoading, refetch } = useCustomers();
   const { data: incidents = [], isLoading: incidentsLoading } = useIncidents();
@@ -239,11 +242,12 @@ export function CustomerManagement() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setEditingCustomer(customer)}
+                          >
                             <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            View Details
                           </Button>
                         </div>
                       </TableCell>
@@ -272,6 +276,28 @@ export function CustomerManagement() {
             }}
             onCancel={() => setIsAddCustomerDialogOpen(false)}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Customer Dialog */}
+      <Dialog open={!!editingCustomer} onOpenChange={() => setEditingCustomer(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Customer</DialogTitle>
+            <DialogDescription>
+              Update the customer information.
+            </DialogDescription>
+          </DialogHeader>
+          {editingCustomer && (
+            <EditCustomerForm
+              customer={editingCustomer}
+              onSuccess={() => {
+                setEditingCustomer(null);
+                refetch();
+              }}
+              onCancel={() => setEditingCustomer(null)}
+            />
+          )}
         </DialogContent>
       </Dialog>
 

@@ -22,10 +22,13 @@ import {
 import { Settings, Search, Plus, Edit, Clock, Target } from 'lucide-react';
 import { useSLAConfig } from '@/hooks/useSLAConfig';
 import { AddSLAConfigForm } from '@/components/forms/AddSLAConfigForm';
+import { EditSLAConfigForm } from '@/components/forms/EditSLAConfigForm';
+import type { SLAConfig } from '@/hooks/useSLAConfig';
 
 export function SLAConfiguration() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddSLAConfigDialogOpen, setIsAddSLAConfigDialogOpen] = useState(false);
+  const [editingSLAConfig, setEditingSLAConfig] = useState<SLAConfig | null>(null);
   
   const { data: slaConfigs = [], isLoading, refetch } = useSLAConfig();
 
@@ -92,7 +95,6 @@ export function SLAConfiguration() {
         </Button>
       </div>
 
-      {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
@@ -217,11 +219,12 @@ export function SLAConfiguration() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => setEditingSLAConfig(config)}
+                        >
                           <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          View Details
                         </Button>
                       </div>
                     </TableCell>
@@ -249,6 +252,28 @@ export function SLAConfiguration() {
             }}
             onCancel={() => setIsAddSLAConfigDialogOpen(false)}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit SLA Config Dialog */}
+      <Dialog open={!!editingSLAConfig} onOpenChange={() => setEditingSLAConfig(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit SLA Configuration</DialogTitle>
+            <DialogDescription>
+              Update the SLA configuration settings.
+            </DialogDescription>
+          </DialogHeader>
+          {editingSLAConfig && (
+            <EditSLAConfigForm
+              slaConfig={editingSLAConfig}
+              onSuccess={() => {
+                setEditingSLAConfig(null);
+                refetch();
+              }}
+              onCancel={() => setEditingSLAConfig(null)}
+            />
+          )}
         </DialogContent>
       </Dialog>
 

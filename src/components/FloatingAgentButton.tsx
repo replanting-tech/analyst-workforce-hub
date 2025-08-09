@@ -8,21 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Bot, Zap } from "lucide-react";
-import AgentInvestigationPanel from './AgentInvestigationPanel';
-
-interface Step {
-  id: string;
-  name: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  summary?: string;
-  details?: string;
-  toolCalls?: { name: string; request: any; response: any }[];
-}
-
-interface Message {
-  role: 'agent' | 'analyst';
-  content: string;
-}
+import AgentStepsTimeline from './AgentStepsTimeline';
 
 interface FloatingAgentButtonProps {
   incidentId: string;
@@ -30,57 +16,6 @@ interface FloatingAgentButtonProps {
 
 const FloatingAgentButton = ({ incidentId }: FloatingAgentButtonProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [steps, setSteps] = useState<Step[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
-
-  // Mock handlers for demo purposes
-  const handleRunAgent = () => {
-    console.log('Running AI agent for incident:', incidentId);
-    
-    // Mock streaming steps
-    const mockSteps: Step[] = [
-      {
-        id: '1',
-        name: 'Reading',
-        status: 'running',
-        summary: 'Analyzing incident logs and details...'
-      }
-    ];
-    
-    setSteps(mockSteps);
-    setMessages([
-      { role: 'agent', content: 'Starting investigation for this incident. Let me analyze the logs and gather information.' }
-    ]);
-
-    // Simulate step progression
-    setTimeout(() => {
-      setSteps(prev => [
-        { ...prev[0], status: 'completed', details: '# Reading Analysis\n\nSuccessfully read and parsed the incident logs. Found anomalous network activity patterns.' },
-        {
-          id: '2',
-          name: 'Grounding',
-          status: 'running',
-          summary: 'Correlating with threat intelligence...'
-        }
-      ]);
-    }, 2000);
-  };
-
-  const handleApproveStep = (stepId: string) => {
-    console.log('Approving step:', stepId);
-  };
-
-  const handleRerunStep = (stepId: string) => {
-    console.log('Re-running step:', stepId);
-  };
-
-  const handleAskAnalyst = (stepId: string) => {
-    console.log('Asking analyst about step:', stepId);
-  };
-
-  const handleCreateTicket = () => {
-    console.log('Creating Jira ticket for incident:', incidentId);
-  };
 
   return (
     <>
@@ -96,26 +31,17 @@ const FloatingAgentButton = ({ incidentId }: FloatingAgentButtonProps) => {
         </div>
       </Button>
 
-      {/* Dialog with AI Agent Panel */}
+      {/* Dialog with AI Agent Timeline */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-7xl h-[80vh] p-0">
+        <DialogContent className="max-w-4xl h-[80vh] p-0">
           <DialogHeader className="p-6 pb-2">
             <DialogTitle className="flex items-center gap-2">
               <Bot className="w-5 h-5" />
-              AI Agent Investigation - Incident {incidentId}
+              AI Agent Analysis - Incident {incidentId}
             </DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-hidden">
-            <AgentInvestigationPanel
-              incidentId={incidentId}
-              steps={steps}
-              messages={messages}
-              onRunAgent={handleRunAgent}
-              onApproveStep={handleApproveStep}
-              onRerunStep={handleRerunStep}
-              onAskAnalyst={handleAskAnalyst}
-              onCreateTicket={handleCreateTicket}
-            />
+          <div className="flex-1 overflow-hidden p-6 pt-0">
+            <AgentStepsTimeline incidentId={incidentId} />
           </div>
         </DialogContent>
       </Dialog>

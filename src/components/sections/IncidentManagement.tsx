@@ -378,10 +378,6 @@ export function IncidentManagement() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-3xl font-bold text-foreground">Incident Management</h2>
-          <p className="text-muted-foreground">Monitor and manage security incidents</p>
-        </div>
         <div className="flex items-center space-x-2">
           <Badge variant="outline" className="text-sm">
             {filteredIncidents.length} Total Incidents

@@ -302,7 +302,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
           {/* Recommendation Analysis */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Recommendation Analysis</CardTitle>
+              <CardTitle className="text-lg">Customer Report</CardTitle>
             </CardHeader>
             <CardContent>
               <RichTextEditor />
@@ -443,62 +443,9 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                     className="flex items-center"
                   >
                     <Send className="w-4 h-4 mr-2" />
-                    Send to Customer
+                   Sent Notif to Customer
                   </Button>
 
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="flex items-center"
-                      >
-                        <Upload className="w-4 h-4 mr-2" />
-                        Request Change
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
-                      <DialogHeader>
-                        <DialogTitle>Request Change to OpenTaxii</DialogTitle>
-                        <DialogDescription>
-                          This action will request this incident's assets to be
-                          pushed onto OpenTaxii later.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="py-4">
-                        <p className="text-sm text-muted-foreground">
-                          When you request a change, the incident assets will be
-                          queued for processing and will be pushed to the
-                          OpenTaxii server during the next scheduled update.
-                        </p>
-                        <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
-                          <p className="text-sm font-medium text-amber-800">
-                            Important Note
-                          </p>
-                          <p className="text-xs text-amber-700 mt-1">
-                            This action cannot be undone. Please ensure that the
-                            incident data is accurate and ready to be shared.
-                          </p>
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          data-dialog-close
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="default"
-                          onClick={submitRequestChange}
-                        >
-                          Confirm Request
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
                 </div>
               </div>
             </CardContent>

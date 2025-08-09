@@ -8,6 +8,7 @@ import IncidentDetail from '@/components/IncidentDetail';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { DarkModeToggle } from '@/components/DarkModeToggle';
+import FloatingAgentButton from '@/components/FloatingAgentButton';
 
 const IncidentDetailPage = () => {
   const { incidentId } = useParams<{ incidentId: string }>();
@@ -38,11 +39,11 @@ const IncidentDetailPage = () => {
             </div>
             <div className="flex items-center space-x-4">
               <DarkModeToggle />
-        
             </div>
           </header>
-          <main className="flex-1 p-6 bg-background w-full">
+          <main className="flex-1 p-6 bg-background w-full relative">
             <IncidentDetail incidentId={incidentId} />
+            <FloatingAgentButton incidentId={incidentId} />
           </main>
         </div>
       </div>

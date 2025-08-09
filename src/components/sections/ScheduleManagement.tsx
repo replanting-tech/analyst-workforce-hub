@@ -1,18 +1,26 @@
-
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, Edit, X, RefreshCw, Activity } from 'lucide-react';
+import { Calendar, Clock, Edit, X, RefreshCw, Activity, Users, TrendingUp, AlertCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSchedule, useDeleteSchedule, useUpdateSchedule, Schedule } from '@/hooks/useSchedule';
 import { CreateScheduleDialog } from '@/components/CreateScheduleDialog';
 import { ImportScheduleDialog } from '@/components/ImportScheduleDialog';
 import { ActivityLogsDialog } from '@/components/ActivityLogsDialog';
+import { AddScheduleModal } from '@/components/AddScheduleModal';
+import { ShiftTemplateModal } from '@/components/ShiftTemplateModal';
 import { useToast } from '@/hooks/use-toast';
+import { format, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 
 export function ScheduleManagement() {
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [addScheduleModal, setAddScheduleModal] = useState<{
+    isOpen: boolean;
+    selectedDate: Date | null;
+    shiftTemplate?: { name: string; start: string; end: string };
+  }>({ isOpen: false, selectedDate: null });
+  const [shiftTemplateModal, setShiftTemplateModal] = useState(false);
   const [activityLogsDialog, setActivityLogsDialog] = useState<{
     isOpen: boolean;
     analystEmail?: string;
@@ -30,14 +38,23 @@ export function ScheduleManagement() {
   const deleteSchedule = useDeleteSchedule();
   const updateSchedule = useUpdateSchedule();
 
-  // Calculate statistics
+  // Enhanced statistics calculation
   const scheduleStats = useMemo(() => {
-    if (!allSchedules) return { onDutyNow: 0, coverageRate: 0, upcomingShifts: 0 };
+    if (!allSchedules) return { 
+      onDutyNow: 0, 
+      coverageRate: 0, 
+      upcomingShifts: 0, 
+      totalAnalysts: 0,
+      weeklyShifts: 0,
+      averageShiftHours: 0,
+      shiftUtilization: 0
+    };
     
     const now = new Date();
     const today = now.toISOString().split('T')[0];
     const currentTime = now.toTimeString().substring(0, 5);
     
+    // Current on-duty analysts
     const onDutyNow = allSchedules.filter(schedule => 
       schedule.shift_date === today && 
       schedule.shift_start <= currentTime && 
@@ -45,17 +62,51 @@ export function ScheduleManagement() {
       schedule.status === 'scheduled'
     ).length;
 
+    // Upcoming shifts in next 24 hours
     const next24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     const upcomingShifts = allSchedules.filter(schedule => {
       const shiftDate = new Date(schedule.shift_date + 'T' + schedule.shift_start);
       return shiftDate >= now && shiftDate <= next24Hours && schedule.status === 'scheduled';
     }).length;
 
-    // Simple coverage calculation - assuming 3 shifts per day should cover 24 hours
+    // Unique analysts with schedules
+    const totalAnalysts = new Set(allSchedules.map(s => s.analyst_id)).size;
+
+    // Weekly shifts (this week)
+    const weekStart = startOfWeek(now);
+    const weekEnd = endOfWeek(now);
+    const weeklyShifts = allSchedules.filter(schedule => {
+      const scheduleDate = new Date(schedule.shift_date);
+      return scheduleDate >= weekStart && scheduleDate <= weekEnd;
+    }).length;
+
+    // Average shift hours
+    const totalHours = allSchedules.reduce((sum, schedule) => {
+      const start = new Date(`2000-01-01T${schedule.shift_start}`);
+      const end = new Date(`2000-01-01T${schedule.shift_end}`);
+      let hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+      if (hours < 0) hours += 24; // Handle overnight shifts
+      return sum + hours;
+    }, 0);
+    const averageShiftHours = allSchedules.length > 0 ? totalHours / allSchedules.length : 0;
+
+    // Coverage calculation - assume 24/7 coverage needs 3 shifts per day
     const todayShifts = allSchedules.filter(s => s.shift_date === today).length;
     const coverageRate = Math.min(100, (todayShifts / 3) * 100);
 
-    return { onDutyNow, coverageRate, upcomingShifts };
+    // Shift utilization - percentage of completed vs scheduled
+    const completedShifts = allSchedules.filter(s => s.status === 'completed').length;
+    const shiftUtilization = allSchedules.length > 0 ? (completedShifts / allSchedules.length) * 100 : 0;
+
+    return { 
+      onDutyNow, 
+      coverageRate, 
+      upcomingShifts, 
+      totalAnalysts,
+      weeklyShifts,
+      averageShiftHours,
+      shiftUtilization
+    };
   }, [allSchedules]);
 
   const getStatusColor = (status: string) => {
@@ -107,15 +158,29 @@ export function ScheduleManagement() {
   };
 
   const handleViewActivityLogs = (schedule: Schedule) => {
-    // We need to get the analyst email from the analysts table
-    // For now, we'll use the analyst_code as a placeholder
-    // In a real implementation, you'd want to join with the analysts table
     setActivityLogsDialog({
       isOpen: true,
-      analystEmail: `${schedule.analyst_code}@company.com`, // Placeholder email
+      analystEmail: `${schedule.analyst_code}@company.com`,
       analystName: schedule.analyst_name,
       shiftDate: schedule.shift_date,
       shiftTime: `${schedule.shift_start} - ${schedule.shift_end}`,
+    });
+  };
+
+  const handleCalendarDayClick = (day: number) => {
+    const clickedDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day);
+    setAddScheduleModal({
+      isOpen: true,
+      selectedDate: clickedDate,
+    });
+  };
+
+  const handleUseTemplate = (template: { name: string; start: string; end: string }) => {
+    setShiftTemplateModal(false);
+    setAddScheduleModal({
+      isOpen: true,
+      selectedDate: new Date(),
+      shiftTemplate: template,
     });
   };
 
@@ -175,15 +240,15 @@ export function ScheduleManagement() {
         </div>
       </div>
 
-      {/* Current Shift Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Enhanced Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-blue-800">On Duty Now</p>
                 <p className="text-2xl font-bold text-blue-900">{scheduleStats.onDutyNow}</p>
-                <p className="text-xs text-blue-600">Analysts active</p>
+                <p className="text-xs text-blue-600">Active analysts</p>
               </div>
               <Clock className="w-8 h-8 text-blue-600" />
             </div>
@@ -203,6 +268,19 @@ export function ScheduleManagement() {
           </CardContent>
         </Card>
 
+        <Card className="bg-gradient-to-r from-purple-50 to-purple-100 border-purple-200">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-purple-800">Total Analysts</p>
+                <p className="text-2xl font-bold text-purple-900">{scheduleStats.totalAnalysts}</p>
+                <p className="text-xs text-purple-600">Scheduled</p>
+              </div>
+              <Users className="w-8 h-8 text-purple-600" />
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="bg-gradient-to-r from-orange-50 to-orange-100 border-orange-200">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -211,7 +289,49 @@ export function ScheduleManagement() {
                 <p className="text-2xl font-bold text-orange-900">{scheduleStats.upcomingShifts}</p>
                 <p className="text-xs text-orange-600">Next 24 hours</p>
               </div>
-              <Clock className="w-8 h-8 text-orange-600" />
+              <AlertCircle className="w-8 h-8 text-orange-600" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Additional Statistics Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Weekly Shifts</p>
+                <p className="text-xl font-bold">{scheduleStats.weeklyShifts}</p>
+                <p className="text-xs text-gray-500">This week</p>
+              </div>
+              <TrendingUp className="w-6 h-6 text-gray-400" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Avg Shift Hours</p>
+                <p className="text-xl font-bold">{scheduleStats.averageShiftHours.toFixed(1)}h</p>
+                <p className="text-xs text-gray-500">Per shift</p>
+              </div>
+              <Clock className="w-6 h-6 text-gray-400" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Utilization Rate</p>
+                <p className="text-xl font-bold">{scheduleStats.shiftUtilization.toFixed(0)}%</p>
+                <p className="text-xs text-gray-500">Completed shifts</p>
+              </div>
+              <Activity className="w-6 h-6 text-gray-400" />
             </div>
           </CardContent>
         </Card>
@@ -376,10 +496,16 @@ export function ScheduleManagement() {
                   ))}
                   
                   {calendarDays.map((day, index) => (
-                    <div key={index} className="min-h-[80px] border-b border-r border-gray-200 p-1 text-sm">
+                    <div 
+                      key={index} 
+                      className={`min-h-[80px] border-b border-r border-gray-200 p-1 text-sm ${
+                        day ? 'cursor-pointer hover:bg-blue-50 transition-colors' : ''
+                      }`}
+                      onClick={() => day && handleCalendarDayClick(day)}
+                    >
                       {day && (
                         <div>
-                          <div className="font-medium mb-1">{day}</div>
+                          <div className="font-medium mb-1 text-blue-600 hover:text-blue-800">{day}</div>
                           {getSchedulesForDate(day).slice(0, 2).map((schedule, i) => (
                             <div key={i} className="text-xs bg-blue-100 text-blue-800 rounded px-1 py-0.5 mb-1 truncate">
                               {schedule.analyst_name}
@@ -395,18 +521,21 @@ export function ScheduleManagement() {
                     </div>
                   ))}
                 </div>
+                <div className="text-sm text-gray-500 text-center">
+                  Click on any date to add a schedule
+                </div>
               </div>
             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
 
-      {/* Schedule Templates */}
+      {/* Updated Schedule Templates */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Shift Templates</CardTitle>
-            <CardDescription>Predefined shift patterns</CardDescription>
+            <CardDescription>Quick schedule creation with predefined shifts</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -415,21 +544,39 @@ export function ScheduleManagement() {
                   <p className="font-medium text-sm">Morning Shift</p>
                   <p className="text-xs text-gray-500">08:00 - 16:00</p>
                 </div>
-                <Button variant="outline" size="sm">Use Template</Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShiftTemplateModal(true)}
+                >
+                  Use Template
+                </Button>
               </div>
               <div className="flex justify-between items-center p-3 border rounded">
                 <div>
                   <p className="font-medium text-sm">Evening Shift</p>
                   <p className="text-xs text-gray-500">16:00 - 24:00</p>
                 </div>
-                <Button variant="outline" size="sm">Use Template</Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShiftTemplateModal(true)}
+                >
+                  Use Template
+                </Button>
               </div>
               <div className="flex justify-between items-center p-3 border rounded">
                 <div>
                   <p className="font-medium text-sm">Night Shift</p>
                   <p className="text-xs text-gray-500">00:00 - 08:00</p>
                 </div>
-                <Button variant="outline" size="sm">Use Template</Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShiftTemplateModal(true)}
+                >
+                  Use Template
+                </Button>
               </div>
             </div>
           </CardContent>
@@ -437,8 +584,8 @@ export function ScheduleManagement() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Schedule Statistics</CardTitle>
-            <CardDescription>Shift coverage and analyst utilization</CardDescription>
+            <CardTitle>Schedule Analytics</CardTitle>
+            <CardDescription>Detailed insights and performance metrics</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -448,7 +595,7 @@ export function ScheduleManagement() {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">Active Schedules</span>
-                <span className="font-medium">{allSchedules?.filter(s => s.status === 'scheduled').length || 0}</span>
+                <span className="font-medium text-blue-600">{allSchedules?.filter(s => s.status === 'scheduled').length || 0}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">Completed Shifts</span>
@@ -458,12 +605,30 @@ export function ScheduleManagement() {
                 <span className="text-sm text-gray-600">Cancelled Shifts</span>
                 <span className="font-medium text-red-600">{allSchedules?.filter(s => s.status === 'cancelled').length || 0}</span>
               </div>
+              <hr className="my-2" />
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Completion Rate</span>
+                <span className="font-medium">{scheduleStats.shiftUtilization.toFixed(1)}%</span>
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Activity Logs Dialog */}
+      {/* Modals */}
+      <AddScheduleModal
+        isOpen={addScheduleModal.isOpen}
+        onClose={() => setAddScheduleModal({ isOpen: false, selectedDate: null })}
+        selectedDate={addScheduleModal.selectedDate}
+        shiftTemplate={addScheduleModal.shiftTemplate}
+      />
+
+      <ShiftTemplateModal
+        isOpen={shiftTemplateModal}
+        onClose={() => setShiftTemplateModal(false)}
+        onSelectTemplate={handleUseTemplate}
+      />
+
       <ActivityLogsDialog
         isOpen={activityLogsDialog.isOpen}
         onClose={() => setActivityLogsDialog({ isOpen: false })}

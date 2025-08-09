@@ -171,9 +171,9 @@ const AgentInvestigationPanel = ({
                           : 'bg-primary text-primary-foreground'
                       }`}
                     >
-                      <ReactMarkdown className="prose prose-sm max-w-none">
-                        {message.content}
-                      </ReactMarkdown>
+                      <div className="prose prose-sm max-w-none">
+                        <ReactMarkdown>{message.content}</ReactMarkdown>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -295,8 +295,10 @@ const AgentInvestigationPanel = ({
                           {step.details && (
                             <div className="mb-4">
                               <h5 className="font-semibold mb-2">Details</h5>
-                              <div className="prose prose-sm max-w-none bg-muted p-3 rounded-md">
-                                <ReactMarkdown>{step.details}</ReactMarkdown>
+                              <div className="bg-muted p-3 rounded-md">
+                                <div className="prose prose-sm max-w-none">
+                                  <ReactMarkdown>{step.details}</ReactMarkdown>
+                                </div>
                               </div>
                             </div>
                           )}

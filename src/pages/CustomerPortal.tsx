@@ -6,8 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CustomerDashboard } from '@/components/CustomerDashboard';
-import { CustomerPortalLayout } from '@/components/CustomerPortalLayout';
+import CustomerPortalLayout from '@/components/CustomerPortalLayout';
 
 const CustomerPortal = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

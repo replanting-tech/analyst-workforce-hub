@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,18 +12,18 @@ import {
   LogOut,
   Home
 } from "lucide-react";
-import CustomerDashboard from '@/components/CustomerDashboard';
-import CustomerPortalReport from '@/components/CustomerPortalReport';
-import CustomerPortalCaseManagement from '@/components/CustomerPortalCaseManagement';
-import CustomerPortalSettings from '@/components/CustomerPortalSettings';
+import { CustomerDashboard } from '@/components/CustomerDashboard';
+import { CustomerPortalReport } from '@/components/CustomerPortalReport';
+import { CustomerPortalCaseManagement } from '@/components/CustomerPortalCaseManagement';
+import { CustomerPortalSettings } from '@/components/CustomerPortalSettings';
 
 interface CustomerPortalLayoutProps {
-  activeSection: string;
-  onSectionChange: (section: string) => void;
   onLogout: () => void;
 }
 
-const CustomerPortalLayout = ({ activeSection, onSectionChange, onLogout }: CustomerPortalLayoutProps) => {
+const CustomerPortalLayout = ({ onLogout }: CustomerPortalLayoutProps) => {
+  const [activeSection, setActiveSection] = useState('dashboard');
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'report', label: 'Report', icon: BarChart3 },
@@ -59,7 +59,7 @@ const CustomerPortalLayout = ({ activeSection, onSectionChange, onLogout }: Cust
             return (
               <button
                 key={item.id}
-                onClick={() => onSectionChange(item.id)}
+                onClick={() => setActiveSection(item.id)}
                 className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
                   activeSection === item.id 
                     ? 'bg-primary text-primary-foreground' 

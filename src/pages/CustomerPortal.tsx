@@ -1,51 +1,32 @@
 
 import React, { useState } from 'react';
-import { Navigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Mail, Lock } from 'lucide-react';
 import CustomerPortalLayout from '@/components/CustomerPortalLayout';
+import { useCustomerAuth } from '@/hooks/useCustomerAuth';
 
 const CustomerPortal = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  // Dummy credentials
-  const DUMMY_CREDENTIALS = {
-    username: 'customer',
-    password: 'portal123'
-  };
+  const { user, login, logout, loading, isAuthenticated } = useCustomerAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
 
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    if (username === DUMMY_CREDENTIALS.username && password === DUMMY_CREDENTIALS.password) {
-      setIsAuthenticated(true);
-    } else {
-      setError('Invalid username or password');
+    const result = await login(email, password);
+    if (!result.success) {
+      setError(result.error || 'Login failed');
     }
-    setLoading(false);
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setUsername('');
-    setPassword('');
-    setError('');
-  };
-
-  if (isAuthenticated) {
-    return <CustomerPortalLayout onLogout={handleLogout} />;
+  if (isAuthenticated && user) {
+    return <CustomerPortalLayout user={user} onLogout={logout} />;
   }
 
   return (
@@ -53,31 +34,39 @@ const CustomerPortal = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold text-gray-900">Customer Portal</CardTitle>
-          <p className="text-gray-600">Please login to access your dashboard</p>
+          <p className="text-gray-600">Sign in to access your security dashboard</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                type="text"
-                placeholder="Enter username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-              />
+              <Label htmlFor="email">Email Address</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="pl-10"
+                  required
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pl-10"
+                  required
+                />
+              </div>
             </div>
             {error && (
               <Alert variant="destructive">
@@ -85,13 +74,15 @@ const CustomerPortal = () => {
               </Alert>
             )}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Logging in...' : 'Login'}
+              {loading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
-          <div className="mt-4 p-3 bg-gray-50 rounded-md">
-            <p className="text-sm text-gray-600 font-medium">Demo Credentials:</p>
-            <p className="text-sm text-gray-500">Username: customer</p>
-            <p className="text-sm text-gray-500">Password: portal123</p>
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <p className="text-sm text-blue-800 font-medium mb-2">Demo Credentials:</p>
+            <div className="space-y-1 text-sm text-blue-700">
+              <p><strong>Email:</strong> customer@test.com</p>
+              <p><strong>Password:</strong> password</p>
+            </div>
           </div>
         </CardContent>
       </Card>

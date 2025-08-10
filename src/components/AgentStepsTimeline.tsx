@@ -1,62 +1,87 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { 
-  CheckCircle, 
-  XCircle, 
-  Loader2, 
-  Circle,
-  Bot,
-  FileText,
-  AlertCircle
-} from "lucide-react";
-import ReactMarkdown from 'react-markdown';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, CheckCircle, AlertCircle, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-
-interface AgentStep {
-  id: string;
-  run_id: string;
-  step_name: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  started_at: string;
-  finished_at?: string;
-  input_blob?: any;
-  output_blob?: any;
-}
 
 interface AgentRun {
   id: string;
   incident_id: string;
   status: string;
-  started_at: string;
-  finished_at?: string;
-  summary?: string;
   mode: string;
+  summary: string | null;
+  started_at: string;
+  finished_at: string | null;
+}
+
+interface AgentStep {
+  id: string;
+  run_id: string;
+  step_name: string;
+  status: string;
+  input_blob: any;
+  output_blob: any;
+  started_at: string;
+  finished_at: string | null;
 }
 
 interface AgentStepsTimelineProps {
   incidentId: string;
 }
 
-const AgentStepsTimeline = ({ incidentId }: AgentStepsTimelineProps) => {
+export function AgentStepsTimeline({ incidentId }: AgentStepsTimelineProps) {
+  const [agentRun, setAgentRun] = useState<AgentRun | null>(null);
   const [steps, setSteps] = useState<AgentStep[]>([]);
-  const [currentRun, setCurrentRun] = useState<AgentRun | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Fetch the latest run and its steps
-  const fetchLatestRunAndSteps = async () => {
+  useEffect(() => {
+    console.log('AgentStepsTimeline: Starting to fetch data for incidentId:', incidentId);
+    fetchAgentData();
+    
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('agent-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'agent_runs',
+          filter: `incident_id=eq.${incidentId}`
+        },
+        (payload) => {
+          console.log('Real-time update for agent_runs:', payload);
+          fetchAgentData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'agent_steps'
+        },
+        (payload) => {
+          console.log('Real-time update for agent_steps:', payload);
+          if (agentRun) {
+            fetchSteps(agentRun.id);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [incidentId]);
+
+  const fetchAgentData = async () => {
     try {
-      setIsLoading(true);
-      setError(null);
-
-      console.log('Fetching latest run for incident:', incidentId);
-
-      // Get the latest run for this incident using the correct incident.id (UUID)
-      const { data: latestRun, error: runError } = await supabase
-        .from('agent_runs' as any)
+      console.log('Fetching agent run for incident_id:', incidentId);
+      
+      const { data: runData, error: runError } = await supabase
+        .from('agent_runs')
         .select('*')
         .eq('incident_id', incidentId)
         .order('started_at', { ascending: false })
@@ -64,271 +89,161 @@ const AgentStepsTimeline = ({ incidentId }: AgentStepsTimelineProps) => {
         .maybeSingle();
 
       if (runError) {
-        console.error('Error fetching latest run:', runError);
-        setError('Failed to fetch agent run data');
+        console.error('Error fetching agent run:', runError);
         return;
       }
 
-      console.log('Latest run found:', latestRun);
-
-      if (!latestRun) {
-        setCurrentRun(null);
+      if (runData) {
+        console.log('Found agent run:', runData);
+        setAgentRun(runData);
+        await fetchSteps(runData.id);
+      } else {
+        console.log('No agent run found for incident_id:', incidentId);
+        setAgentRun(null);
         setSteps([]);
-        setIsLoading(false);
-        return;
       }
+    } catch (error) {
+      console.error('Error in fetchAgentData:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      setCurrentRun(latestRun);
-
-      // Get all steps for this run
-      const { data: runSteps, error: stepsError } = await supabase
-        .from('agent_steps' as any)
+  const fetchSteps = async (runId: string) => {
+    try {
+      console.log('Fetching steps for run_id:', runId);
+      
+      const { data: stepsData, error: stepsError } = await supabase
+        .from('agent_steps')
         .select('*')
-        .eq('run_id', latestRun.id)
+        .eq('run_id', runId)
         .order('started_at', { ascending: true });
 
       if (stepsError) {
-        console.error('Error fetching steps:', stepsError);
-        setError('Failed to fetch agent steps');
+        console.error('Error fetching agent steps:', stepsError);
         return;
       }
 
-      console.log('Steps found:', runSteps);
-      setSteps(runSteps || []);
-    } catch (err) {
-      console.error('Unexpected error:', err);
-      setError('An unexpected error occurred');
-    } finally {
-      setIsLoading(false);
+      console.log('Found agent steps:', stepsData);
+      setSteps(stepsData || []);
+    } catch (error) {
+      console.error('Error in fetchSteps:', error);
     }
   };
 
-  // Set up real-time subscription for agent_steps changes
-  useEffect(() => {
-    if (!currentRun) return;
-
-    console.log('Setting up real-time subscription for run:', currentRun.id);
-
-    const channel = supabase
-      .channel(`agent-steps-${currentRun.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'agent_steps',
-          filter: `run_id=eq.${currentRun.id}`
-        },
-        (payload) => {
-          console.log('New step inserted:', payload);
-          setSteps(prev => [...prev, payload.new as AgentStep]);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'agent_steps',
-          filter: `run_id=eq.${currentRun.id}`
-        },
-        (payload) => {
-          console.log('Step updated:', payload);
-          setSteps(prev => 
-            prev.map(step => 
-              step.id === payload.new.id ? payload.new as AgentStep : step
-            )
-          );
-        }
-      )
-      .subscribe();
-
-    return () => {
-      console.log('Cleaning up real-time subscription');
-      supabase.removeChannel(channel);
-    };
-  }, [currentRun]);
-
-  // Initial fetch on mount or incidentId change
-  useEffect(() => {
-    fetchLatestRunAndSteps();
-  }, [incidentId]);
-
-  const getStatusIcon = (status: AgentStep['status']) => {
+  const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'pending':
-        return <Circle className="w-4 h-4 text-muted-foreground" />;
-      case 'running':
-        return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
       case 'completed':
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
+        return <CheckCircle className="w-4 h-4 text-green-600" />;
+      case 'running':
+        return <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />;
       case 'failed':
-        return <XCircle className="w-4 h-4 text-red-500" />;
+        return <AlertCircle className="w-4 h-4 text-red-600" />;
       default:
-        return <Circle className="w-4 h-4 text-muted-foreground" />;
+        return <Clock className="w-4 h-4 text-gray-400" />;
     }
   };
 
-  const getStatusBadge = (status: AgentStep['status']) => {
-    const variants = {
-      pending: 'secondary',
-      running: 'default',
-      completed: 'default',
-      failed: 'destructive'
-    } as const;
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'running':
+        return 'bg-blue-100 text-blue-800';
+      case 'failed':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
 
+  if (loading) {
     return (
-      <Badge variant={variants[status]} className="ml-2">
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </Badge>
-    );
-  };
-
-  const formatTimestamp = (timestamp: string) => {
-    return new Date(timestamp).toLocaleString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false
-    });
-  };
-
-  const formatOutput = (output: any) => {
-    if (!output) return null;
-    
-    if (typeof output === 'string') {
-      return output;
-    }
-    
-    if (typeof output === 'object') {
-      // If it has a 'content' or 'message' field, use that
-      if (output.content) return output.content;
-      if (output.message) return output.message;
-      if (output.result) return output.result;
-      
-      // Otherwise, stringify the object
-      return JSON.stringify(output, null, 2);
-    }
-    
-    return String(output);
-  };
-
-  if (isLoading) {
-    return (
-      <Card className="w-full">
-        <CardContent className="flex items-center justify-center p-8">
-          <div className="flex items-center space-x-2">
-            <Loader2 className="w-6 h-6 animate-spin" />
-            <span>Loading agent analysis...</span>
-          </div>
-        </CardContent>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span>Loading AI Agent Progress...</span>
+          </CardTitle>
+        </CardHeader>
       </Card>
     );
   }
 
-  if (error) {
+  if (!agentRun) {
     return (
-      <Card className="w-full">
-        <CardContent className="flex items-center justify-center p-8">
-          <div className="text-center">
-            <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-500" />
-            <h3 className="text-lg font-semibold mb-2">Error Loading Analysis</h3>
-            <p className="text-muted-foreground">{error}</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!currentRun) {
-    return (
-      <Card className="w-full">
-        <CardContent className="flex items-center justify-center p-8">
-          <div className="text-center">
-            <Bot className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-2">No AI Analysis Available</h3>
-            <p className="text-muted-foreground">
-              No AI analysis has been run yet for this incident.
-            </p>
-          </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>AI Agent Status</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-gray-500">No AI agent run found for this incident.</p>
+          <p className="text-sm text-gray-400 mt-2">Incident ID: {incidentId}</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="w-full">
+    <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="w-5 h-5" />
-          AI Analysis Timeline
-          {currentRun.summary && (
-            <Badge variant="outline" className="ml-2">
-              {currentRun.mode}
-            </Badge>
-          )}
+        <CardTitle className="flex items-center justify-between">
+          <span>AI Agent Progress</span>
+          <Badge className={getStatusColor(agentRun.status)}>
+            {agentRun.status}
+          </Badge>
         </CardTitle>
-        {currentRun.summary && (
-          <p className="text-sm text-muted-foreground mt-1">
-            {currentRun.summary}
-          </p>
-        )}
       </CardHeader>
-      <CardContent className="p-0">
-        {steps.length === 0 ? (
-          <div className="p-8 text-center">
-            <Circle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-2">Analysis Started</h3>
-            <p className="text-muted-foreground">
-              Waiting for analysis steps to begin...
-            </p>
-          </div>
-        ) : (
-          <ScrollArea className="h-96">
-            <div className="space-y-4 p-4">
-              {steps.map((step, index) => (
-                <Card key={step.id} className="border-l-4 border-l-primary/20">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        {getStatusIcon(step.status)}
-                        <div>
-                          <h4 className="font-semibold">{step.step_name}</h4>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs text-muted-foreground">
-                              Started: {formatTimestamp(step.started_at)}
-                            </span>
-                            {step.finished_at && (
-                              <span className="text-xs text-muted-foreground">
-                                • Finished: {formatTimestamp(step.finished_at)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        {getStatusBadge(step.status)}
-                      </div>
-                    </div>
-                  </CardHeader>
-                  
-                  {step.output_blob && (
-                    <CardContent className="pt-0">
-                      <div className="bg-muted p-3 rounded-md">
-                        <div className="prose prose-sm max-w-none dark:prose-invert">
-                          <ReactMarkdown>
-                            {formatOutput(step.output_blob)}
-                          </ReactMarkdown>
-                        </div>
-                      </div>
-                    </CardContent>
+      <CardContent className="space-y-4">
+        <div className="bg-gray-50 p-3 rounded-lg">
+          <p className="text-sm font-medium">Mode: {agentRun.mode}</p>
+          <p className="text-sm text-gray-600">Started: {new Date(agentRun.started_at).toLocaleString()}</p>
+          {agentRun.finished_at && (
+            <p className="text-sm text-gray-600">Finished: {new Date(agentRun.finished_at).toLocaleString()}</p>
+          )}
+          {agentRun.summary && (
+            <p className="text-sm mt-2">{agentRun.summary}</p>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <h4 className="font-medium">Investigation Steps</h4>
+          {steps.length === 0 ? (
+            <p className="text-gray-500 text-sm">No steps recorded yet.</p>
+          ) : (
+            steps.map((step, index) => (
+              <div key={step.id} className="flex items-start space-x-3 p-3 border rounded-lg">
+                <div className="flex-shrink-0 mt-1">
+                  {getStatusIcon(step.status)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h5 className="font-medium text-sm">{step.step_name}</h5>
+                    <Badge variant="outline" className={getStatusColor(step.status)}>
+                      {step.status}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Started: {new Date(step.started_at).toLocaleString()}
+                  </p>
+                  {step.finished_at && (
+                    <p className="text-xs text-gray-500">
+                      Finished: {new Date(step.finished_at).toLocaleString()}
+                    </p>
                   )}
-                </Card>
-              ))}
-            </div>
-          </ScrollArea>
-        )}
+                  {step.output_blob && (
+                    <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
+                      <pre className="whitespace-pre-wrap">
+                        {JSON.stringify(step.output_blob, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </CardContent>
     </Card>
   );
-};
-
-export default AgentStepsTimeline;
+}

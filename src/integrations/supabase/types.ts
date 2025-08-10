@@ -249,6 +249,178 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_portal_sessions: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          session_token: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          session_token: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          session_token?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_portal_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "customer_portal_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_portal_users: {
+        Row: {
+          created_at: string | null
+          customer_id: string | null
+          email: string
+          full_name: string | null
+          id: string
+          is_active: boolean | null
+          last_login: string | null
+          password_hash: string
+          role: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          customer_id?: string | null
+          email: string
+          full_name?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_login?: string | null
+          password_hash: string
+          role?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          customer_id?: string | null
+          email?: string
+          full_name?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_login?: string | null
+          password_hash?: string
+          role?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_portal_users_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_reports: {
+        Row: {
+          customer_id: string | null
+          file_path: string | null
+          generated_at: string | null
+          generated_by: string | null
+          id: string
+          report_data: Json | null
+          report_name: string
+          report_type: string
+          status: string | null
+        }
+        Insert: {
+          customer_id?: string | null
+          file_path?: string | null
+          generated_at?: string | null
+          generated_by?: string | null
+          id?: string
+          report_data?: Json | null
+          report_name: string
+          report_type: string
+          status?: string | null
+        }
+        Update: {
+          customer_id?: string | null
+          file_path?: string | null
+          generated_at?: string | null
+          generated_by?: string | null
+          id?: string
+          report_data?: Json | null
+          report_name?: string
+          report_type?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_reports_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_reports_generated_by_fkey"
+            columns: ["generated_by"]
+            isOneToOne: false
+            referencedRelation: "customer_portal_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_settings: {
+        Row: {
+          customer_id: string | null
+          id: string
+          setting_key: string
+          setting_value: Json | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          customer_id?: string | null
+          id?: string
+          setting_key: string
+          setting_value?: Json | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          customer_id?: string | null
+          id?: string
+          setting_key?: string
+          setting_value?: Json | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_settings_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "customer_portal_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           created_at: string | null

@@ -79,7 +79,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhtb3pwYmV3amtlaXN2cGZ6ZWNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyMDM3MDMsImV4cCI6MjA2Nzc3OTcwM30.goD6H9fLQPljKpifLlLIU6_Oo4jJO7b2-8GlkeqkiKA`, // preferably use env var
+            Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhtb3pwYmV3amtlaXN2cGZ6ZWNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyMDM3MDMsImV4cCI6MjA2Nzc3OTcwM30.goD6H9fLQPljKpifLlLIU6_Oo4jJO7b2-8GlkeqkiKA`,
           },
           body: JSON.stringify(payload),
         }
@@ -92,11 +92,35 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
         alert("Failed to send email.");
       } else {
         console.log("Email sent successfully:", result);
-        alert("Email sent!");
+        // Update the customer_notification field to 'waiting for approval'
+        await updateCustomerNotificationStatus();
+        alert("Email sent and notification status updated!");
       }
     } catch (err) {
       console.error("Unexpected error:", err);
       alert("An unexpected error occurred.");
+    }
+  }
+
+  // New function to update customer notification status
+  async function updateCustomerNotificationStatus() {
+    if (!incident) return;
+
+    try {
+      const { error } = await supabase
+        .from('incidents')
+        .update({ customer_notification: 'waiting for approval' })
+        .eq('incident_id', incident.incident_id);
+
+      if (error) {
+        console.error('Error updating notification status:', error);
+        throw error;
+      }
+
+      console.log('Customer notification status updated to waiting for approval');
+    } catch (err) {
+      console.error('Error updating customer notification status:', err);
+      throw err;
     }
   }
 
@@ -445,8 +469,20 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                     <Send className="w-4 h-4 mr-2" />
                    Sent Notif to Customer
                   </Button>
-
                 </div>
+                {incident.customer_notification && (
+                  <div className="mt-2">
+                    <Badge 
+                      variant={
+                        incident.customer_notification === 'approved' ? 'default' :
+                        incident.customer_notification === 'waiting for approval' ? 'destructive' :
+                        incident.customer_notification === 'rejected' ? 'secondary' : 'outline'
+                      }
+                    >
+                      Notification: {incident.customer_notification}
+                    </Badge>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Bot, Zap } from "lucide-react";
-import AgentStepsTimeline from './AgentStepsTimeline';
+import {AgentStepsTimeline} from './AgentStepsTimeline';
 
 interface FloatingAgentButtonProps {
   incidentId: string;

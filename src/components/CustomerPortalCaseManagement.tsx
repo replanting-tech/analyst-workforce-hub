@@ -93,20 +93,6 @@ export function CustomerPortalCaseManagement() {
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
-          <Button variant="outline" size="sm">
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
-          </Button>
-          <Button variant="outline" size="sm">
-            <Settings className="w-4 h-4 mr-2" />
-            Security Efficiency workbook
-          </Button>
-          <Button variant="outline" size="sm">
-            Columns
-          </Button>
-          <Button variant="outline" size="sm">
-            Guides & Feedback
-          </Button>
         </div>
       </div>
 
@@ -162,14 +148,6 @@ export function CustomerPortalCaseManagement() {
               className="pl-9 w-80"
             />
           </div>
-          <div className="flex items-center space-x-2">
-            <Switch
-              checked={autoRefresh}
-              onCheckedChange={setAutoRefresh}
-              id="auto-refresh"
-            />
-            <label htmlFor="auto-refresh" className="text-sm">Auto-refresh incidents</label>
-          </div>
         </div>
       </div>
 
@@ -195,41 +173,6 @@ export function CustomerPortalCaseManagement() {
           <Badge variant="secondary">{selectedIncidents.length} selected</Badge>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <span className="text-sm font-medium">Incident provider name:</span>
-          <Select defaultValue="all">
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="All" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <span className="text-sm font-medium">Alert product name:</span>
-          <Select defaultValue="all">
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="All" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <span className="text-sm font-medium">Owner:</span>
-          <Select defaultValue="all">
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="All" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
       </div>
 
       {/* Incidents Table */}

@@ -14,6 +14,120 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_runs: {
+        Row: {
+          finished_at: string | null
+          id: string
+          incident_id: string
+          mode: string | null
+          started_at: string | null
+          status: string | null
+          summary: string | null
+        }
+        Insert: {
+          finished_at?: string | null
+          id?: string
+          incident_id: string
+          mode?: string | null
+          started_at?: string | null
+          status?: string | null
+          summary?: string | null
+        }
+        Update: {
+          finished_at?: string | null
+          id?: string
+          incident_id?: string
+          mode?: string | null
+          started_at?: string | null
+          status?: string | null
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_runs_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_runs_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "v_incident_sla_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_runs_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "v_sla_breach_alerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_steps: {
+        Row: {
+          finished_at: string | null
+          id: string
+          input_blob: Json | null
+          output_blob: Json | null
+          run_id: string
+          started_at: string | null
+          status: string | null
+          step_name: string
+        }
+        Insert: {
+          finished_at?: string | null
+          id?: string
+          input_blob?: Json | null
+          output_blob?: Json | null
+          run_id: string
+          started_at?: string | null
+          status?: string | null
+          step_name: string
+        }
+        Update: {
+          finished_at?: string | null
+          id?: string
+          input_blob?: Json | null
+          output_blob?: Json | null
+          run_id?: string
+          started_at?: string | null
+          status?: string | null
+          step_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_steps_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      analyst_activity_logs: {
+        Row: {
+          analyst_email: string | null
+          created_at: string
+          id: number
+          info: string | null
+        }
+        Insert: {
+          analyst_email?: string | null
+          created_at: string
+          id?: number
+          info?: string | null
+        }
+        Update: {
+          analyst_email?: string | null
+          created_at?: string
+          id?: number
+          info?: string | null
+        }
+        Relationships: []
+      }
       analyst_schedule: {
         Row: {
           analyst_id: string
@@ -57,27 +171,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      analyst_activity_logs: {
-        Row: {
-          id: number
-          analyst_email: string | null
-          info: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: number
-          analyst_email?: string | null
-          info?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: number
-          analyst_email?: string | null
-          info?: string | null
-          created_at?: string
-        }
-        Relationships: []
       }
       analyst_workload: {
         Row: {
@@ -125,6 +218,8 @@ export type Database = {
           email: string
           id: string
           name: string
+          object_id: string | null
+          role: string | null
           status: string | null
           updated_at: string | null
         }
@@ -135,6 +230,8 @@ export type Database = {
           email: string
           id?: string
           name: string
+          object_id?: string | null
+          role?: string | null
           status?: string | null
           updated_at?: string | null
         }
@@ -145,6 +242,8 @@ export type Database = {
           email?: string
           id?: string
           name?: string
+          object_id?: string | null
+          role?: string | null
           status?: string | null
           updated_at?: string | null
         }
@@ -249,15 +348,70 @@ export type Database = {
           },
         ]
       }
+      incident_steps: {
+        Row: {
+          created_at: string | null
+          id: string
+          incident_id: string
+          result: Json | null
+          status: string
+          step_name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          incident_id: string
+          result?: Json | null
+          status?: string
+          step_name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          incident_id?: string
+          result?: Json | null
+          status?: string
+          step_name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incident_steps_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_steps_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "v_incident_sla_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_steps_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "v_sla_breach_alerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incidents: {
         Row: {
           analyst_id: string | null
           closed_time: string | null
+          comments: string | null
           created_at: string | null
           creation_time: string
           customer_id: string
           customer_notification: string | null
+          entities: string | null
           id: string
+          incident_classification: string | null
           incident_id: string
           incident_number: string
           incident_url: string | null
@@ -266,16 +420,20 @@ export type Database = {
           raw_logs: string | null
           sla_target_time: string | null
           status: string | null
+          tags: string | null
           updated_at: string | null
         }
         Insert: {
           analyst_id?: string | null
           closed_time?: string | null
+          comments?: string | null
           created_at?: string | null
           creation_time: string
           customer_id: string
           customer_notification?: string | null
+          entities?: string | null
           id?: string
+          incident_classification?: string | null
           incident_id: string
           incident_number: string
           incident_url?: string | null
@@ -284,16 +442,20 @@ export type Database = {
           raw_logs?: string | null
           sla_target_time?: string | null
           status?: string | null
+          tags?: string | null
           updated_at?: string | null
         }
         Update: {
           analyst_id?: string | null
           closed_time?: string | null
+          comments?: string | null
           created_at?: string | null
           creation_time?: string
           customer_id?: string
           customer_notification?: string | null
+          entities?: string | null
           id?: string
+          incident_classification?: string | null
           incident_id?: string
           incident_number?: string
           incident_url?: string | null
@@ -302,6 +464,7 @@ export type Database = {
           raw_logs?: string | null
           sla_target_time?: string | null
           status?: string | null
+          tags?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -562,6 +725,27 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_groups: {
+        Row: {
+          customer_name: string | null
+          group_name: string | null
+          id: number
+          number: string | null
+        }
+        Insert: {
+          customer_name?: string | null
+          group_name?: string | null
+          id?: number
+          number?: string | null
+        }
+        Update: {
+          customer_name?: string | null
+          group_name?: string | null
+          id?: number
+          number?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       v_analyst_schedule_today: {
@@ -599,11 +783,13 @@ export type Database = {
           customer_name: string | null
           customer_notification: string | null
           id: string | null
+          incident_classification: string | null
           incident_id: string | null
           incident_number: string | null
           incident_url: string | null
           jira_ticket_id: string | null
           priority: string | null
+          raw_logs: string | null
           resolution_minutes: number | null
           sla_remaining_formatted: string | null
           sla_remaining_seconds: number | null
@@ -744,42 +930,17 @@ export type Database = {
         Returns: Json
       }
       create_incident: {
-        Args:
-          | {
-              p_incident_id: string
-              p_workspace_name: string
-              p_priority: string
-              p_creation_time: string
-              p_analyst_code?: string
-            }
-          | {
-              p_incident_id: string
-              p_workspace_name: string
-              p_priority: string
-              p_creation_time: string
-              p_jira_ticket_id?: string
-              p_analyst_code?: string
-            }
-          | {
-              p_incident_id: string
-              p_workspace_name: string
-              p_priority: string
-              p_creation_time: string
-              p_jira_ticket_id?: string
-              p_analyst_code?: string
-              p_raw_logs?: string
-            }
-          | {
-              p_incident_id: string
-              p_workspace_name: string
-              p_priority: string
-              p_creation_time: string
-              p_jira_ticket_id?: string
-              p_analyst_name?: string
-              p_raw_logs?: string
-              p_incident_url?: string
-              p_incident_number?: string
-            }
+        Args: {
+          p_incident_id: string
+          p_workspace_name: string
+          p_priority: string
+          p_creation_time: string
+          p_jira_ticket_id?: string
+          p_analyst_name?: string
+          p_raw_logs?: string
+          p_incident_url?: string
+          p_incident_number?: string
+        }
         Returns: Json
       }
       create_request_change: {
@@ -828,20 +989,38 @@ export type Database = {
         Args: { p_analyst_id: string; p_date?: string }
         Returns: undefined
       }
-      update_incident_status: {
+      update_incident: {
         Args: {
-          p_incident_id: string
-          p_new_status?: string
-          p_analyst_code?: string
+          p_incident_number: string
+          p_status: string
+          p_priority?: string
           p_jira_ticket_id?: string
-          p_customer_notification?: string
-          p_changed_by?: string
+          p_analyst_name?: string
+          p_incident_classification?: string
         }
-        Returns: Json
+        Returns: undefined
+      }
+      update_incident_status: {
+        Args:
+          | {
+              p_incident_id: string
+              p_new_status?: string
+              p_analyst_code?: string
+              p_jira_ticket_id?: string
+              p_customer_notification?: string
+              p_changed_by?: string
+            }
+          | {
+              p_incident_number: string
+              p_status: string
+              p_priority?: string
+              p_jira_ticket_id?: string
+            }
+        Returns: undefined
       }
     }
     Enums: {
-      [_ in never]: never
+      status_enum: "active" | "closed" | "need review"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -968,6 +1147,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      status_enum: ["active", "closed", "need review"],
+    },
   },
 } as const

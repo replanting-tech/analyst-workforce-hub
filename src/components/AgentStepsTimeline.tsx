@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -51,9 +52,11 @@ const AgentStepsTimeline = ({ incidentId }: AgentStepsTimelineProps) => {
       setIsLoading(true);
       setError(null);
 
-      // Get the latest run for this incident
+      console.log('Fetching latest run for incident:', incidentId);
+
+      // Get the latest run for this incident using the correct incident.id (UUID)
       const { data: latestRun, error: runError } = await supabase
-        .from('agent_runs')
+        .from('agent_runs' as any)
         .select('*')
         .eq('incident_id', incidentId)
         .order('started_at', { ascending: false })
@@ -66,6 +69,8 @@ const AgentStepsTimeline = ({ incidentId }: AgentStepsTimelineProps) => {
         return;
       }
 
+      console.log('Latest run found:', latestRun);
+
       if (!latestRun) {
         setCurrentRun(null);
         setSteps([]);
@@ -77,7 +82,7 @@ const AgentStepsTimeline = ({ incidentId }: AgentStepsTimelineProps) => {
 
       // Get all steps for this run
       const { data: runSteps, error: stepsError } = await supabase
-        .from('agent_steps')
+        .from('agent_steps' as any)
         .select('*')
         .eq('run_id', latestRun.id)
         .order('started_at', { ascending: true });
@@ -88,6 +93,7 @@ const AgentStepsTimeline = ({ incidentId }: AgentStepsTimelineProps) => {
         return;
       }
 
+      console.log('Steps found:', runSteps);
       setSteps(runSteps || []);
     } catch (err) {
       console.error('Unexpected error:', err);
@@ -100,6 +106,8 @@ const AgentStepsTimeline = ({ incidentId }: AgentStepsTimelineProps) => {
   // Set up real-time subscription for agent_steps changes
   useEffect(() => {
     if (!currentRun) return;
+
+    console.log('Setting up real-time subscription for run:', currentRun.id);
 
     const channel = supabase
       .channel(`agent-steps-${currentRun.id}`)
@@ -136,6 +144,7 @@ const AgentStepsTimeline = ({ incidentId }: AgentStepsTimelineProps) => {
       .subscribe();
 
     return () => {
+      console.log('Cleaning up real-time subscription');
       supabase.removeChannel(channel);
     };
   }, [currentRun]);

@@ -326,7 +326,19 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
           {/* Recommendation Analysis */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Customer Report</CardTitle>
+              <CardTitle className="text-lg">Customer Report
+                {incident.customer_notification && (
+                    <Badge 
+                    className="ml-2"
+                      variant={
+                        incident.customer_notification === 'approved' ? 'default' :
+                        incident.customer_notification === 'waiting for approval' ? 'destructive' :
+                        incident.customer_notification === 'rejected' ? 'secondary' : 'outline'
+                      }
+                    >
+                      Notification: {incident.customer_notification}
+                    </Badge>
+                )}</CardTitle>
             </CardHeader>
             <CardContent>
               <RichTextEditor />
@@ -371,12 +383,21 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                   <AlertTriangle className="w-5 h-5" />
                   Basic Information
                 </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+             <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Button className={"w-full " + getPriorityColor(incident.priority)}>
+                    {incident.priority}
+                  </Button>
+                </div>
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      size="sm"
+                      size="md"
                       className={`flex items-center gap-1 ${getStatusColor(
                         currentStatus || incident.status
                       )}`}
@@ -408,26 +429,6 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Incident Number
-                  </p>
-                  <p className="font-mono text-sm">
-                    {incident.incident_number}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Priority
-                  </p>
-                  <Badge className={getPriorityColor(incident.priority)}>
-                    {incident.priority}
-                  </Badge>
-                </div>
-              </div>
               <Button className="w-full" asChild>
                 <a
                   href={incident.incident_url}
@@ -438,7 +439,8 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                   View in Azure Sentinel
                 </a>
               </Button>
-              <div>
+              <div className="grid grid-cols-2 gap-2">
+                  <div>
                 <p className="text-sm font-medium text-muted-foreground">
                   Assigned Analyst
                 </p>
@@ -456,10 +458,19 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                 )}
               </div>
               <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Incident Number
+                </p>
+                <p className="font-mono text-sm">
+                  {incident.incident_number}
+                </p>
+              </div>
+              </div>
+              <div>
                 <p className="text-sm font-medium text-muted-foreground mb-2">
                   Actions
                 </p>
-                <div className="flex items-center gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -467,22 +478,18 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                     className="flex items-center"
                   >
                     <Send className="w-4 h-4 mr-2" />
-                   Sent Notif to Customer
+                    Notif to Customer
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={sendEmail}
+                    className="flex items-center"
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                   Request Change
                   </Button>
                 </div>
-                {incident.customer_notification && (
-                  <div className="mt-2">
-                    <Badge 
-                      variant={
-                        incident.customer_notification === 'approved' ? 'default' :
-                        incident.customer_notification === 'waiting for approval' ? 'destructive' :
-                        incident.customer_notification === 'rejected' ? 'secondary' : 'outline'
-                      }
-                    >
-                      Notification: {incident.customer_notification}
-                    </Badge>
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>
@@ -520,7 +527,15 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Created
+                  </p>
+                  <p className="text-sm">
+                    {formatDateTime(incident.creation_time)}
+                  </p>
+                </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">
                     SLA Target
@@ -529,14 +544,6 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                     {incident.sla_target_time
                       ? formatDateTime(incident.sla_target_time)
                       : "Not set"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Created
-                  </p>
-                  <p className="text-sm">
-                    {formatDateTime(incident.creation_time)}
                   </p>
                 </div>
                 {incident.status === "active" && incident.sla_target_time && (

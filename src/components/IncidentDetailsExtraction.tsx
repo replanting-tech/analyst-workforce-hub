@@ -100,9 +100,6 @@ const IncidentDetailsExtraction: React.FC<IncidentDetailsExtractionProps> = ({
         <div className="grid grid-cols-2 gap-6">
           {/* Left Column - Informasi Penting Dari Log */}
           <div className="space-y-4">
-            <h3 className="font-semibold text-sm text-muted-foreground mb-3">
-              Informasi Penting Dari Log
-            </h3>
             
             <div className="space-y-2">
               <div className="flex items-center gap-2 p-2 bg-muted rounded">
@@ -161,10 +158,6 @@ const IncidentDetailsExtraction: React.FC<IncidentDetailsExtractionProps> = ({
 
           {/* Right Column - Entities & Analyst Enrichment */}
           <div className="space-y-4">
-            <h3 className="font-semibold text-sm text-muted-foreground mb-3">
-              Entities (Ambil Entities dari Azure)
-            </h3>
-            
             <div className="space-y-2">
               <div className="flex items-center gap-2 p-2 bg-muted rounded">
                 <span className="text-xs font-medium">Username:</span>

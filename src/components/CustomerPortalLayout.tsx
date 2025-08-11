@@ -5,10 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Building2, FileText, Settings, BarChart3, LogOut, User } from 'lucide-react';
-import CustomerPortalDashboard from './CustomerPortalDashboard';
-import CustomerPortalCaseManagement from './CustomerPortalCaseManagement';
-import CustomerPortalReport from './CustomerPortalReport';
-import CustomerPortalSettings from './CustomerPortalSettings';
+import {CustomerPortalDashboard} from './CustomerPortalDashboard';
+import {CustomerPortalCaseManagement} from './CustomerPortalCaseManagement';
+import {CustomerPortalReport} from './CustomerPortalReport';
+import {CustomerPortalSettings} from './CustomerPortalSettings';
 
 interface CustomerPortalUser {
   id: string;

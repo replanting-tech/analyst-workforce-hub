@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Mail, Lock } from 'lucide-react';
-import CustomerPortalLayout from '@/components/CustomerPortalLayout';
+import {CustomerPortalLayout} from '@/components/CustomerPortalLayout';
 import { useCustomerAuth } from '@/hooks/useCustomerAuth';
 
 const CustomerPortal = () => {

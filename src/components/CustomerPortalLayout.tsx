@@ -4,9 +4,9 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { CustomerPortalDashboard } from './CustomerPortalDashboard';
-import CustomerPortalCaseManagement from './CustomerPortalCaseManagement';
-import CustomerPortalReport from './CustomerPortalReport';
-import CustomerPortalSettings from './CustomerPortalSettings';
+import {CustomerPortalCaseManagement} from './CustomerPortalCaseManagement';
+import {CustomerPortalReport} from './CustomerPortalReport';
+import {CustomerPortalSettings} from './CustomerPortalSettings';
 import { DarkModeToggle } from './DarkModeToggle';
 
 interface User {
@@ -28,7 +28,7 @@ export function CustomerPortalLayout({ user }: CustomerPortalLayoutProps) {
       case 'dashboard':
         return <CustomerPortalDashboard user={user} />;
       case 'case-management':
-        return <CustomerPortalCaseManagement />;
+        return <CustomerPortalCaseManagement user={user} />;
       case 'reports':
         return <CustomerPortalReport customerId={user.customer_id} />;
       case 'settings':

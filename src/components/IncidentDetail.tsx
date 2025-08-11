@@ -9,6 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useIncidentById } from "@/hooks/useIncidents";
+import { supabase } from "@/integrations/supabase/client";
 import {
   AlertTriangle,
   Clock,
@@ -28,25 +29,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import RichTextEditor from "./RichTextEditor";
 import IncidentDetailsExtraction from "./IncidentDetailsExtraction";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { StatusWorkflowDropdown } from "./StatusWorkflowDropdown";
 
 interface IncidentDetailProps {
   incidentId: string;
@@ -124,32 +107,6 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
     }
   }
 
-  // Function to update incident status
-  async function updateStatus(newStatus: string) {
-    if (!incident) return;
-
-    try {
-      // Here you would typically make an API call to update the status
-      // For now, we'll just update the local state
-      setCurrentStatus(newStatus);
-      alert(`Status updated to: ${newStatus}`);
-
-      // In a real implementation, you would call your API here
-      // const response = await fetch(`your-api-endpoint/${incident.id}`, {
-      //   method: 'PATCH',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ status: newStatus }),
-      // });
-
-      // if (!response.ok) {
-      //   throw new Error('Failed to update status');
-      // }
-    } catch (err) {
-      console.error("Error updating status:", err);
-      alert("Failed to update status. Please try again.");
-    }
-  }
-
   // Function to submit request change to OpenTaxii
   async function submitRequestChange() {
     if (!incident) return;
@@ -202,7 +159,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
 
   // Live countdown timer for SLA
   useEffect(() => {
-    if (!incident || incident.status === "closed" || !incident.sla_target_time)
+    if (!incident || incident.status === "incident_closed" || incident.status === "false_positive_closed" || !incident.sla_target_time)
       return;
 
     const updateCountdown = () => {
@@ -272,21 +229,6 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
         return "bg-gray-100 text-gray-800 border-gray-200";
       default:
         return "bg-gray-100 text-gray-800 border-gray-200";
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return "bg-green-100 text-green-800 hover:bg-green-200";
-      case "closed":
-        return "bg-gray-100 text-gray-800 hover:bg-gray-200";
-      case "escalated":
-        return "bg-red-100 text-red-800 hover:bg-red-200";
-      case "need review":
-        return "bg-yellow-100 text-yellow-800 hover:bg-yellow-200";
-      default:
-        return "bg-gray-100 text-gray-800 hover:bg-gray-200";
     }
   };
 
@@ -393,41 +335,11 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                   </Button>
                 </div>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="md"
-                      className={`flex items-center gap-1 ${getStatusColor(
-                        currentStatus || incident.status
-                      )}`}
-                    >
-                      {currentStatus || incident.status}
-                      <ChevronRight className="h-4 w-4 ml-1" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Change Status</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuRadioGroup
-                      value={currentStatus || incident.status}
-                      onValueChange={updateStatus}
-                    >
-                      <DropdownMenuRadioItem value="active">
-                        Active
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value="closed">
-                        Closed
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value="escalated">
-                        Escalated
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value="need review">
-                        Need Review
-                      </DropdownMenuRadioItem>
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <StatusWorkflowDropdown 
+                  currentStatus={incident.status}
+                  incidentId={incident.incident_id}
+                  onStatusChange={setCurrentStatus}
+                />
               </div>
               <Button className="w-full" asChild>
                 <a
@@ -483,7 +395,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={sendEmail}
+                    onClick={submitRequestChange}
                     className="flex items-center"
                   >
                     <Send className="w-4 h-4 mr-2" />
@@ -546,7 +458,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                       : "Not set"}
                   </p>
                 </div>
-                {incident.status === "active" && incident.sla_target_time && (
+                {incident.status === "open" || incident.status === "incident" && incident.sla_target_time && (
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">
                       Time Remaining

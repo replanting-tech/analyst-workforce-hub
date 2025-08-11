@@ -576,12 +576,12 @@ export type Database = {
         Row: {
           analyst_id: string | null
           closed_time: string | null
-          comments: string | null
+          comments: string[] | null
           created_at: string | null
           creation_time: string
           customer_id: string
           customer_notification: string | null
-          entities: string | null
+          entities: string[] | null
           id: string
           incident_classification: string | null
           incident_id: string
@@ -592,18 +592,18 @@ export type Database = {
           raw_logs: string | null
           sla_target_time: string | null
           status: string | null
-          tags: string | null
+          tags: string[] | null
           updated_at: string | null
         }
         Insert: {
           analyst_id?: string | null
           closed_time?: string | null
-          comments?: string | null
+          comments?: string[] | null
           created_at?: string | null
           creation_time: string
           customer_id: string
           customer_notification?: string | null
-          entities?: string | null
+          entities?: string[] | null
           id?: string
           incident_classification?: string | null
           incident_id: string
@@ -614,18 +614,18 @@ export type Database = {
           raw_logs?: string | null
           sla_target_time?: string | null
           status?: string | null
-          tags?: string | null
+          tags?: string[] | null
           updated_at?: string | null
         }
         Update: {
           analyst_id?: string | null
           closed_time?: string | null
-          comments?: string | null
+          comments?: string[] | null
           created_at?: string | null
           creation_time?: string
           customer_id?: string
           customer_notification?: string | null
-          entities?: string | null
+          entities?: string[] | null
           id?: string
           incident_classification?: string | null
           incident_id?: string
@@ -636,7 +636,7 @@ export type Database = {
           raw_logs?: string | null
           sla_target_time?: string | null
           status?: string | null
-          tags?: string | null
+          tags?: string[] | null
           updated_at?: string | null
         }
         Relationships: [
@@ -950,10 +950,12 @@ export type Database = {
           analyst_code: string | null
           analyst_name: string | null
           closed_time: string | null
+          comments: string[] | null
           created_at: string | null
           creation_time: string | null
           customer_name: string | null
           customer_notification: string | null
+          entities: string[] | null
           id: string | null
           incident_classification: string | null
           incident_id: string | null
@@ -968,6 +970,7 @@ export type Database = {
           sla_status: string | null
           sla_target_time: string | null
           status: string | null
+          tags: string[] | null
           updated_at: string | null
           workspace_name: string | null
         }
@@ -1102,17 +1105,32 @@ export type Database = {
         Returns: Json
       }
       create_incident: {
-        Args: {
-          p_incident_id: string
-          p_workspace_name: string
-          p_priority: string
-          p_creation_time: string
-          p_jira_ticket_id?: string
-          p_analyst_name?: string
-          p_raw_logs?: string
-          p_incident_url?: string
-          p_incident_number?: string
-        }
+        Args:
+          | {
+              p_incident_id: string
+              p_workspace_name: string
+              p_priority: string
+              p_creation_time: string
+              p_jira_ticket_id?: string
+              p_analyst_name?: string
+              p_raw_logs?: string
+              p_incident_url?: string
+              p_incident_number?: string
+            }
+          | {
+              p_incident_id: string
+              p_workspace_name: string
+              p_priority: string
+              p_creation_time: string
+              p_jira_ticket_id?: string
+              p_analyst_name?: string
+              p_raw_logs?: string
+              p_incident_url?: string
+              p_incident_number?: string
+              p_tags?: string[]
+              p_entities?: Json
+              p_comments?: string
+            }
         Returns: Json
       }
       create_request_change: {
@@ -1169,6 +1187,9 @@ export type Database = {
           p_jira_ticket_id?: string
           p_analyst_name?: string
           p_incident_classification?: string
+          p_entities?: string[]
+          p_tags?: string[]
+          p_comments?: string[]
         }
         Returns: undefined
       }

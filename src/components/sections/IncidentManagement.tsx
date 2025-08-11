@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { PaginationComponent } from '@/components/PaginationComponent';
 import { Incident } from '@/hooks/useIncidents';
 import { useToast } from '@/hooks/use-toast';
+import { StatusWorkflowDropdown } from '@/components/StatusWorkflowDropdown';
 
 interface IncidentWithCountdown extends Incident {
   liveCountdown: string;
@@ -135,7 +137,7 @@ export function IncidentManagement() {
         let isNearBreach = false;
         let shouldShowSLAAlert = false;
 
-        if (incident.status === 'active' && incident.sla_target_time) {
+        if ((incident.status === 'open' || incident.status === 'incident') && incident.sla_target_time) {
           const target = new Date(incident.sla_target_time).getTime();
           const difference = target - now;
 
@@ -160,7 +162,7 @@ export function IncidentManagement() {
             isNearBreach = true;
             shouldShowSLAAlert = true; // Show alert button for breached incidents too
           }
-        } else if (incident.status === 'closed') {
+        } else if (incident.status === 'incident_closed' || incident.status === 'false_positive_closed') {
           liveCountdown = 'Closed';
         } else {
           liveCountdown = 'N/A';
@@ -185,11 +187,11 @@ export function IncidentManagement() {
       // Sort incidents: breached first, then by time remaining (ascending), then by priority (descending)
       processed.sort((a, b) => {
         // First, prioritize active incidents
-        if (a.status === 'active' && b.status !== 'active') return -1;
-        if (a.status !== 'active' && b.status === 'active') return 1;
+        if ((a.status === 'open' || a.status === 'incident') && (b.status !== 'open' && b.status !== 'incident')) return -1;
+        if ((a.status !== 'open' && a.status !== 'incident') && (b.status === 'open' || b.status === 'incident')) return 1;
 
         // For active incidents, sort by SLA status and remaining time
-        if (a.status === 'active' && b.status === 'active') {
+        if ((a.status === 'open' || a.status === 'incident') && (b.status === 'open' || b.status === 'incident')) {
           // Breached incidents first
           if (a.sla_status === 'breach' && b.sla_status !== 'breach') return -1;
           if (a.sla_status !== 'breach' && b.sla_status === 'breach') return 1;
@@ -318,14 +320,6 @@ export function IncidentManagement() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-green-100 text-green-800';
-      case 'closed': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   const getSLAStatusColor = (slaStatus: string, remainingSeconds: number, liveCountdown: string) => {
     if (slaStatus === 'breach' || liveCountdown === 'BREACHED') return 'bg-red-100 text-red-800';
     if (remainingSeconds <= 900 && remainingSeconds > 0) return 'bg-orange-100 text-orange-800';
@@ -334,7 +328,7 @@ export function IncidentManagement() {
   };
 
   const getCountdownColor = (liveCountdown: string, isNearBreach: boolean, status: string) => {
-    if (status !== 'active') return 'text-muted-foreground';
+    if (status !== 'open' && status !== 'incident') return 'text-muted-foreground';
     if (liveCountdown === 'BREACHED') return 'text-red-600 font-bold';
     if (isNearBreach) return 'text-orange-600 font-semibold';
     return 'text-green-600';
@@ -460,8 +454,10 @@ export function IncidentManagement() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="closed">Closed</SelectItem>
+                <SelectItem value="open">Open</SelectItem>
+                <SelectItem value="incident">Incident</SelectItem>
+                <SelectItem value="incident_closed">Incident-Closed</SelectItem>
+                <SelectItem value="false_positive_closed">False-Positive Closed</SelectItem>
               </SelectContent>
             </Select>
             <Select value={slaStatusFilter} onValueChange={setSlaStatusFilter}>
@@ -496,7 +492,7 @@ export function IncidentManagement() {
       <Card>
         <CardHeader>
           <CardTitle>Incidents</CardTitle>
-          <CardDescription>Real-time incident tracking and management</CardDescription>
+          <CardDescription>Real-time incident tracking and management with workflow validation</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -515,7 +511,7 @@ export function IncidentManagement() {
               </TableHeader>
               <TableBody>
                 {paginatedIncidents.map((incident) => (
-                  <TableRow key={incident.incident_id} className={incident.isNearBreach && incident.status === 'active' ? 'bg-red-50' : ''}>
+                  <TableRow key={incident.incident_id} className={incident.isNearBreach && (incident.status === 'open' || incident.status === 'incident') ? 'bg-red-50' : ''}>
                     <TableCell className="font-mono text-sm">
                       {incident.incident_number}
                     </TableCell>
@@ -531,9 +527,10 @@ export function IncidentManagement() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getStatusColor(incident.status)}>
-                        {incident.status}
-                      </Badge>
+                      <StatusWorkflowDropdown 
+                        currentStatus={incident.status}
+                        incidentId={incident.incident_id}
+                      />
                     </TableCell>
                     <TableCell>
                       {incident.analyst_name ? (

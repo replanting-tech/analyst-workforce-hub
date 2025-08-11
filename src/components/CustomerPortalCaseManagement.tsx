@@ -20,13 +20,15 @@ interface User {
   email: string;
   full_name: string;
   customer_id: string;
+  role: string;
 }
 
 interface CustomerPortalCaseManagementProps {
   user: User;
+  onIncidentSelect: (incidentId: string) => void;
 }
 
-export function CustomerPortalCaseManagement({ user }: CustomerPortalCaseManagementProps) {
+export function CustomerPortalCaseManagement({ user, onIncidentSelect }: CustomerPortalCaseManagementProps) {
   const { data: incidents, isLoading } = useIncidents();
   const { toast } = useToast();
   const [selectedIncident, setSelectedIncident] = useState<any>(null);
@@ -261,6 +263,7 @@ export function CustomerPortalCaseManagement({ user }: CustomerPortalCaseManagem
                     <TableHead>Created</TableHead>
                     <TableHead>Analyst</TableHead>
                     <TableHead>Notification Status</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -287,6 +290,16 @@ export function CustomerPortalCaseManagement({ user }: CustomerPortalCaseManagem
                         >
                           {incident.customer_notification || 'pending'}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => onIncidentSelect(incident.incident_id)}
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          View
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}

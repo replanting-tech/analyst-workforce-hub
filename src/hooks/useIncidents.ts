@@ -6,12 +6,12 @@ export interface Incident {
   id: string;
   incident_id: string;
   incident_number: string;
-  customer_id: string;
+  customer_id?: string; // Made optional since it's not in v_incident_sla_details
   customer_name: string;
   workspace_name: string;
   analyst_code: string | null;
   analyst_name: string | null;
-  analyst_email: string | null;
+  analyst_email?: string | null; // Made optional since it's not in v_incident_sla_details
   priority: string;
   creation_time: string;
   sla_target_time: string | null;
@@ -28,6 +28,9 @@ export interface Incident {
   incident_url?: string;
   raw_logs?: string;
   incident_classification?: string | null;
+  entities?: string[];
+  tags?: string[];
+  comments?: string[];
 }
 
 export const useIncidents = () => {
@@ -45,7 +48,7 @@ export const useIncidents = () => {
         throw error;
       }
 
-      return data as Incident[];
+      return data as unknown as Incident[];
     },
   });
 };
@@ -66,7 +69,7 @@ export const useIncidentById = (incidentId: string) => {
         throw error;
       }
 
-      return data as Incident | null;
+      return data as unknown as Incident | null;
     },
     enabled: !!incidentId,
   });

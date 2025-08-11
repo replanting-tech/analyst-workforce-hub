@@ -156,63 +156,6 @@ const IncidentDetailsExtraction: React.FC<IncidentDetailsExtractionProps> = ({
             </div>
           </div>
 
-          {/* Right Column - Entities & Analyst Enrichment */}
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 p-2 bg-muted rounded">
-                <span className="text-xs font-medium">Username:</span>
-                <span className="text-xs">{extractedData.username}</span>
-              </div>
-
-              <div className="flex items-center gap-2 p-2 bg-muted rounded">
-                <span className="text-xs font-medium">Asset Hostname:</span>
-                <span className="text-xs">{extractedData.assetHostname}</span>
-              </div>
-
-              <div className="flex items-center gap-2 p-2 bg-muted rounded">
-                <span className="text-xs font-medium">IP:</span>
-                <span className="text-xs font-mono">{extractedData.ip}</span>
-              </div>
-            </div>
-
-            <h3 className="font-semibold text-sm text-muted-foreground mb-3 mt-6">
-              Analyst Enrichment
-            </h3>
-            
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 p-2 bg-muted rounded">
-                <span className="text-xs font-medium">Threat Indicator - IP:</span>
-                <span className="text-xs font-mono">{extractedData.threatIndicatorIP}</span>
-              </div>
-
-              <div className="flex items-center gap-2 p-2 bg-muted rounded">
-                <span className="text-xs font-medium">Threat Indicator - Hash:</span>
-                <span className="text-xs font-mono truncate" title={extractedData.threatIndicatorHash}>
-                  {extractedData.threatIndicatorHash}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 p-2 bg-muted rounded">
-                <span className="text-xs font-medium">Threat Indicator - Domain:</span>
-                <span className="text-xs">{extractedData.threatIndicatorDomain}</span>
-              </div>
-
-              <div className="flex items-center gap-2 p-2 bg-muted rounded">
-                <span className="text-xs font-medium">Threat Category:</span>
-                <span className="text-xs">{extractedData.threatCategory}</span>
-              </div>
-
-              <div className="flex items-start gap-2 p-2 bg-muted rounded">
-                <span className="text-xs font-medium min-w-fit">Description:</span>
-                <span className="text-xs">{extractedData.description}</span>
-              </div>
-
-              <div className="flex items-start gap-2 p-2 bg-muted rounded">
-                <span className="text-xs font-medium min-w-fit">Technical Recommendation:</span>
-                <span className="text-xs">{extractedData.technicalRecommendation}</span>
-              </div>
-            </div>
-          </div>
         </div>
       </CardContent>
     </Card>

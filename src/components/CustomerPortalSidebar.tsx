@@ -46,16 +46,26 @@ const menuItems = [
   },
 ];
 
+interface User {
+  id: string;
+  email: string;
+  full_name: string;
+  customer_id: string;
+  role: string;
+}
+
 interface CustomerPortalSidebarProps {
   activeSection?: string;
   onSectionChange?: (section: string) => void;
-  onLogout: () => void;
+  onLogout?: () => void;
+  user: User;
 }
 
 export function CustomerPortalSidebar({
   activeSection = "dashboard",
   onSectionChange,
   onLogout,
+  user,
 }: CustomerPortalSidebarProps) {
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";

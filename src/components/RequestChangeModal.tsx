@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 interface RequestChangeModalProps {
   incidentId: string;
   incidentNumber: string;
-  analystName: string;
+  analystCode: string;
 }
 
 interface Indicator {
@@ -23,7 +23,7 @@ interface Indicator {
   description: string;
 }
 
-export function RequestChangeModal({ incidentId, incidentNumber, analystName }: RequestChangeModalProps) {
+export function RequestChangeModal({ incidentId, incidentNumber, analystCode }: RequestChangeModalProps) {
   const [open, setOpen] = useState(false);
   const [requiredAction, setRequiredAction] = useState<'soc' | 'customer' | ''>('');
   const [affectedAssets, setAffectedAssets] = useState('');
@@ -65,7 +65,7 @@ export function RequestChangeModal({ incidentId, incidentNumber, analystName }: 
         .insert({
           incident_number: incidentNumber,
           jira_ticket_id: jiraTicketId || null,
-          analyst_id: analystName,
+          analyst_id: analystCode,
           assets: affectedAssets,
           status: 'waiting for approval'
         })

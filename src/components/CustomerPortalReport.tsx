@@ -82,7 +82,7 @@ export function CustomerPortalReport({ customerId }: CustomerPortalReportProps) 
   const completedReports = reports.filter(r => r.status === 'completed').length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 sm:p-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">

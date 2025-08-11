@@ -250,9 +250,6 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
         <Tabs defaultValue="details" className="w-full">
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="details">Incident Details</TabsTrigger>
-            <TabsTrigger value="entities">Entities</TabsTrigger>
-            <TabsTrigger value="tags">Tags</TabsTrigger>
-            <TabsTrigger value="comments">Comments</TabsTrigger>
             <TabsTrigger value="raw-logs">Raw Logs</TabsTrigger>
           </TabsList>
 
@@ -262,23 +259,13 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
               creationTime={incident.creation_time}
               priority={incident.priority}
             />
+            <EntitiesSection entities={incident.entities} />
             <AnalystEnrichmentSection 
               incidentId={incident.incident_id}
               rawLogs={incident.raw_logs}
             />
           </TabsContent>
 
-          <TabsContent value="entities" className="mt-6">
-            <EntitiesSection entities={incident.entities} />
-          </TabsContent>
-
-          <TabsContent value="tags" className="mt-6">
-            <TagsSection tags={incident.tags} />
-          </TabsContent>
-
-          <TabsContent value="comments" className="mt-6">
-            <CommentsSection comments={incident.comments} />
-          </TabsContent>
 
           <TabsContent value="raw-logs" className="mt-6">
             <Card>
@@ -302,6 +289,8 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
             </Card>
           </TabsContent>
         </Tabs>
+
+            <CommentsSection comments={incident.comments} />
       </div>
 
       {/* Right Column - Sidebar (25%) */}
@@ -374,7 +363,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                   <RequestChangeModal
                     incidentId={incident.incident_id}
                     incidentNumber={incident.incident_number}
-                    analystName={incident.analyst_name || "Unassigned"}
+                    analystCode={incident.analyst_code}
                   />
                 </div>
               </div>
@@ -391,7 +380,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
                   SLA Status
@@ -465,6 +454,9 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
             </div>
           </CardContent>
         </Card>
+
+        {/* Tags */}
+        <TagsSection tags={incident.tags} />
 
         {/* Customer Information */}
         <Card>

@@ -40,8 +40,8 @@ export const useIncidents = () => {
       const { data, error } = await supabase
         .from('v_incident_sla_details')
         .select('*')
-        .limit(10)
-        .order('creation_time', { ascending: false });
+        .neq('analyst_code', 'AUT')
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching incidents:', error);
@@ -57,20 +57,34 @@ export const useIncidentById = (incidentId: string) => {
   return useQuery({
     queryKey: ['incident', incidentId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // First try to get from the view with all details
+      const { data: viewData, error: viewError } = await supabase
         .from('v_incident_sla_details')
         .select('*')
-        .limit(10)
         .eq('incident_id', incidentId)
-        .maybeSingle();
+        .single();
 
-      if (error) {
-        console.error('Error fetching incident:', error);
-        throw error;
+      if (!viewError) {
+        return viewData as unknown as Incident;
       }
 
-      return data as unknown as Incident | null;
+      // If not found in the view, try the base table as fallback
+      console.warn('Incident not found in view, trying base table...');
+      const { data: tableData, error: tableError } = await supabase
+        .from('incidents')
+        .select('*')
+        .eq('incident_id', incidentId)
+        .single();
+
+      if (tableError) {
+        console.error('Error fetching incident:', tableError);
+        throw tableError;
+      }
+
+      return tableData as unknown as Incident;
     },
     enabled: !!incidentId,
+    retry: 1, // Retry once in case of network errors
+    refetchOnWindowFocus: false,
   });
 };

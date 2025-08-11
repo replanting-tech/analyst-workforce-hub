@@ -1,82 +1,116 @@
-
-import React, { useState } from 'react';
+import React from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { CustomerPortalSidebar } from "@/components/CustomerPortalSidebar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { CustomerPortalDashboard } from './CustomerPortalDashboard';
-import {CustomerPortalCaseManagement} from './CustomerPortalCaseManagement';
-import {CustomerPortalReport} from './CustomerPortalReport';
-import {CustomerPortalSettings} from './CustomerPortalSettings';
-import { CustomerPortalIncidentDetail } from './CustomerPortalIncidentDetail';
 import { DarkModeToggle } from './DarkModeToggle';
+import { useCustomerAuth } from '@/hooks/useCustomerAuth';
+import { LogOut } from 'lucide-react';
 
-interface User {
-  id: string;
-  email: string;
-  full_name: string;
-  customer_id: string;
-  role: string;
-}
+const getSectionTitle = (section: string): string => {
+  switch (section) {
+    case 'dashboard':
+      return 'Dashboard';
+    case 'case-management':
+      return 'Case Management';
+    case 'case-detail':
+      return 'Case Details';
+    case 'reports':
+      return 'Reports';
+    case 'settings':
+      return 'Settings';
+    default:
+      return 'Dashboard';
+  }
+};
+
+const getActiveSection = (pathname: string): string => {
+  if (pathname.includes('/cases/')) return 'case-detail';
+  if (pathname.includes('/cases')) return 'case-management';
+  if (pathname.includes('/reports')) return 'reports';
+  if (pathname.includes('/settings')) return 'settings';
+  return 'dashboard';
+};
 
 interface CustomerPortalLayoutProps {
-  user: User;
-  onLogout: () => void;
+  children?: React.ReactNode;
 }
 
-export function CustomerPortalLayout({ user, onLogout }: CustomerPortalLayoutProps) {
-  const [activeSection, setActiveSection] = useState('dashboard');
-  const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
+export function CustomerPortalLayout({ children }: CustomerPortalLayoutProps) {
+  const { user, logout } = useCustomerAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  // Get the active section based on the current path
+  const activeSection = React.useMemo(() => {
+    return getActiveSection(location.pathname);
+  }, [location.pathname]);
 
-  const renderContent = () => {
-    if (selectedIncidentId) {
-      return (
-        <CustomerPortalIncidentDetail 
-          incidentId={selectedIncidentId} 
-          onBack={() => setSelectedIncidentId(null)}
-        />
-      );
-    }
-
-    switch (activeSection) {
+  const handleSectionChange = (section: string) => {
+    switch (section) {
       case 'dashboard':
-        return <CustomerPortalDashboard user={user} />;
+        navigate('/portal');
+        break;
       case 'case-management':
-        return <CustomerPortalCaseManagement user={user} onIncidentSelect={setSelectedIncidentId} />;
+        navigate('/portal/cases');
+        break;
       case 'reports':
-        return <CustomerPortalReport customerId={user.customer_id} />;
+        navigate('/portal/reports');
+        break;
       case 'settings':
-        return <CustomerPortalSettings user={user} />;
+        navigate('/portal/settings');
+        break;
       default:
-        return <CustomerPortalDashboard user={user} />;
+        navigate('/portal');
     }
   };
 
+  if (!user) {
+    // This shouldn't happen as the ProtectedRoute should handle this
+    return null;
+  }
+
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full">
-        <CustomerPortalSidebar 
-          activeSection={activeSection} 
-          onSectionChange={setActiveSection}
-          onLogout={onLogout}
-        />
-        <div className="flex-1 flex flex-col w-full">
-          <header className="bg-background border-b border-border px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <SidebarTrigger />
-              <h1 className="text-2xl font-bold text-foreground">Customer Portal</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-muted-foreground">
-                Welcome, {user.full_name}
-              </span>
-              <DarkModeToggle />
-            </div>
-          </header>
-          <main className="flex-1 p-6 bg-background w-full">
-            {renderContent()}
-          </main>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 w-full">
+      <SidebarProvider>
+        <div className="flex h-screen w-full">
+          <CustomerPortalSidebar 
+            user={user} 
+            activeSection={activeSection} 
+            onSectionChange={handleSectionChange} 
+            onLogout={logout} 
+          />
+          <div className="flex-1 flex flex-col w-full overflow-hidden">
+            <header className="bg-white dark:bg-gray-800 shadow-sm w-full">
+              <div className="w-full flex items-center justify-between p-4">
+                <div className="flex items-center">
+                  <SidebarTrigger className="md:hidden mr-4" />
+                  <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    {getSectionTitle(activeSection)}
+                  </h1>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <DarkModeToggle />
+                  {/* <div className="relative">
+                    <button
+                      className="flex items-center space-x-2 text-sm font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                      onClick={logout}
+                    >
+                      <span>Logout</span>
+                      <LogOut className="h-4 w-4" />
+                    </button>
+                  </div> */}
+                </div>
+              </div>
+            </header>
+            <main className="flex-1 overflow-y-auto w-full p-0">
+              <div className="w-full h-full">
+                {children || <Outlet context={{ user }} />}
+              </div>
+            </main>
+          </div>
         </div>
-      </div>
-    </SidebarProvider>
+      </SidebarProvider>
+    </div>
   );
 }

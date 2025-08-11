@@ -2,16 +2,17 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import IncidentDetailPage from "./pages/IncidentDetail";
 import Auth from "./pages/Auth";
-import CustomerPortal from "./pages/CustomerPortal";
+import { CustomerRoutes } from "./routes/CustomerRoutes";
 import Report from "./pages/Report";
 import ResetPassword from "./pages/ResetPassword";
+import CustomerPortal from "./pages/CustomerPortal";
 
 const queryClient = new QueryClient();
 
@@ -29,14 +30,12 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <Routes>
+              {/* Auth routes */}
               <Route path="/auth" element={<Auth />} />
               <Route path="/auth/reset-password" element={<ResetPassword />} />
-              <Route path="/portal/customer" element={<CustomerPortal />} />
-              <Route path="/report" element={
-                <ProtectedRoute>
-                  <Report />
-                </ProtectedRoute>
-              } />
+              
+              {/* Customer portal routes */}
+              <Route path="/portal/*" element={<CustomerPortal><CustomerRoutes /></CustomerPortal>} />
               
               {/* Main dashboard routes */}
               <Route path="/" element={
@@ -44,6 +43,13 @@ const App = () => (
                   <Index />
                 </ProtectedRoute>
               } />
+              
+              <Route path="/report" element={
+                <ProtectedRoute>
+                  <Report />
+                </ProtectedRoute>
+              } />
+              
               <Route path="/incidents" element={
                 <ProtectedRoute>
                   <Index />

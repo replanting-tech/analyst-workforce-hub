@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertTriangle, Plus, Eye, CheckCircle, XCircle, Clock, Bell } from 'lucide-react';
+import { AlertTriangle, Plus, Eye, CheckCircle, XCircle, Clock, Bell, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { useIncidents } from '@/hooks/useIncidents';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -28,22 +28,37 @@ interface CustomerPortalCaseManagementProps {
   onIncidentSelect: (incidentId: string) => void;
 }
 
+const ITEMS_PER_PAGE = 10;
+
 export function CustomerPortalCaseManagement({ user, onIncidentSelect }: CustomerPortalCaseManagementProps) {
-  const { data: incidents, isLoading } = useIncidents();
+  const { data: incidents = [], isLoading } = useIncidents();
   const { toast } = useToast();
   const [selectedIncident, setSelectedIncident] = useState<any>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [newCaseData, setNewCaseData] = useState({
     title: '',
     description: '',
     priority: 'Medium',
     category: 'security_incident'
   });
-
+  
   // Filter incidents for this customer and pending notifications
-  const customerIncidents = incidents?.filter(incident => 
-    incident.customer_name && 
-    incident.customer_notification === 'waiting for approval'
-  ) || [];
+  const customerIncidents = React.useMemo(() => 
+    (incidents || []).filter(incident => 
+      incident.customer_name && 
+      incident.customer_notification === 'waiting for approval'
+    ),
+    [incidents]
+  );
+  
+  // Pagination logic
+  const totalPages = Math.ceil(customerIncidents.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedIncidents = customerIncidents.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  
+  const handlePageChange = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
 
   const handleApproveNotification = async (incidentId: string) => {
     try {
@@ -138,7 +153,7 @@ export function CustomerPortalCaseManagement({ user, onIncidentSelect }: Custome
 
   if (isLoading) {
     return (
-      <div className="animate-pulse space-y-4">
+      <div className="animate-pulse space-y-4 p-4 sm:p-6">
         <div className="h-8 bg-gray-200 rounded w-1/4"></div>
         <div className="h-64 bg-gray-200 rounded"></div>
       </div>
@@ -146,7 +161,7 @@ export function CustomerPortalCaseManagement({ user, onIncidentSelect }: Custome
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 sm:p-6">
       {/* Urgent Notifications Alert */}
       {customerIncidents.length > 0 && (
         <Card className="border-orange-200 bg-orange-50">
@@ -162,7 +177,7 @@ export function CustomerPortalCaseManagement({ user, onIncidentSelect }: Custome
               You have {customerIncidents.length} incident notification(s) requiring your approval.
             </p>
             <div className="space-y-3">
-              {customerIncidents.map((incident) => (
+              {paginatedIncidents.map((incident) => (
                 <div key={incident.incident_id} className="bg-white p-4 rounded-lg border border-orange-200">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
@@ -244,14 +259,14 @@ export function CustomerPortalCaseManagement({ user, onIncidentSelect }: Custome
 
       <Tabs defaultValue="incidents" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="incidents">My Incidents</TabsTrigger>
+          <TabsTrigger value="incidents">Incidents</TabsTrigger>
           <TabsTrigger value="create">Create New Case</TabsTrigger>
         </TabsList>
 
         <TabsContent value="incidents" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>My Security Incidents</CardTitle>
+              <CardTitle> Incidents</CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
@@ -267,7 +282,7 @@ export function CustomerPortalCaseManagement({ user, onIncidentSelect }: Custome
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {incidents?.map((incident) => (
+                  {incidents.slice(startIndex, startIndex + ITEMS_PER_PAGE).map((incident) => (
                     <TableRow key={incident.incident_id}>
                       <TableCell className="font-mono">{incident.incident_number}</TableCell>
                       <TableCell>
@@ -305,6 +320,85 @@ export function CustomerPortalCaseManagement({ user, onIncidentSelect }: Custome
                   ))}
                 </TableBody>
               </Table>
+              
+              {/* Pagination Controls */}
+              <div className="flex items-center justify-between px-2 py-4">
+                <div className="text-sm text-muted-foreground">
+                  Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, incidents.length)} of {incidents.length} incidents
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(1)}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="flex items-center space-x-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      // Show pages around current page
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={pageNum === currentPage ? "default" : "ghost"}
+                          size="sm"
+                          onClick={() => handlePageChange(pageNum)}
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                    {totalPages > 5 && currentPage < totalPages - 2 && (
+                      <span className="px-2">...</span>
+                    )}
+                    {totalPages > 5 && currentPage < totalPages - 2 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handlePageChange(totalPages)}
+                      >
+                        {totalPages}
+                      </Button>
+                    )}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages || totalPages === 0}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(totalPages)}
+                    disabled={currentPage === totalPages || totalPages === 0}
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

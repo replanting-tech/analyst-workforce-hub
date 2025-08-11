@@ -3,8 +3,10 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, AlertTriangle, Clock, Building2, User } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Clock, Building2, User, FileText } from 'lucide-react';
 import { useIncidentById } from '@/hooks/useIncidents';
+import { StatusWorkflowDropdown } from './StatusWorkflowDropdown';
+import RichTextEditor from './RichTextEditor';
 
 interface CustomerPortalIncidentDetailProps {
   incidentId: string;
@@ -12,6 +14,7 @@ interface CustomerPortalIncidentDetailProps {
 }
 
 export function CustomerPortalIncidentDetail({ incidentId, onBack }: CustomerPortalIncidentDetailProps) {
+  console.log('Incident:', incidentId);
   const { data: incident, isLoading, error } = useIncidentById(incidentId);
 
   const getPriorityColor = (priority: string) => {
@@ -34,9 +37,19 @@ export function CustomerPortalIncidentDetail({ incidentId, onBack }: CustomerPor
     });
   };
 
+
+  const formatRawLogs = (rawLogs: string) => {
+    try {
+      const parsed = JSON.parse(rawLogs);
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      return rawLogs;
+    }
+  };
+
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 p-4 sm:p-6">
         <Button variant="ghost" onClick={onBack} className="mb-4">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Cases
@@ -55,7 +68,7 @@ export function CustomerPortalIncidentDetail({ incidentId, onBack }: CustomerPor
 
   if (error || !incident) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 p-4 sm:p-6">
         <Button variant="ghost" onClick={onBack} className="mb-4">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Cases
@@ -70,7 +83,7 @@ export function CustomerPortalIncidentDetail({ incidentId, onBack }: CustomerPor
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 sm:p-6">
       <div className="flex items-center justify-between">
         <Button variant="ghost" onClick={onBack}>
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -92,38 +105,18 @@ export function CustomerPortalIncidentDetail({ incidentId, onBack }: CustomerPor
               </CardTitle>
             </CardHeader>
             <CardContent>
+              <RichTextEditor />
               <div className="space-y-4">
-                <div>
-                  <h4 className="font-semibold mb-2">Classification</h4>
-                  <Badge variant="outline">
-                    {incident.incident_classification || 'Under Investigation'}
-                  </Badge>
-                </div>
-                
-                <div>
-                  <h4 className="font-semibold mb-2">Current Status</h4>
-                  <Badge variant="secondary">{incident.status}</Badge>
-                </div>
-
-                <div>
-                  <h4 className="font-semibold mb-2">Customer Notification Status</h4>
-                  <Badge 
-                    variant={
-                      incident.customer_notification === 'approved' ? 'default' :
-                      incident.customer_notification === 'waiting for approval' ? 'destructive' :
-                      incident.customer_notification === 'rejected' ? 'secondary' : 'outline'
-                    }
-                  >
-                    {incident.customer_notification || 'pending'}
-                  </Badge>
-                </div>
-
-                {incident.raw_logs && (
-                  <div>
-                    <h4 className="font-semibold mb-2">Technical Details</h4>
-                    <div className="bg-gray-900 text-green-400 p-3 rounded text-xs font-mono max-h-40 overflow-auto">
-                      {JSON.stringify(JSON.parse(incident.raw_logs), null, 2)}
-                    </div>
+                {incident.raw_logs ? (
+                  <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-xs overflow-auto max-h-96">
+                    <pre className="whitespace-pre-wrap">
+                      {formatRawLogs(incident.raw_logs)}
+                    </pre>
+                  </div>
+                ) : (
+                  <div className="text-center text-muted-foreground py-8">
+                    <FileText className="mx-auto h-12 w-12 mb-4" />
+                    <p>No raw logs available for this incident</p>
                   </div>
                 )}
               </div>
@@ -177,6 +170,17 @@ export function CustomerPortalIncidentDetail({ incidentId, onBack }: CustomerPor
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 gap-4">
+                <Button className={"w-full " + getPriorityColor(incident.priority)} variant="outline">
+                  {incident.priority}
+                </Button>
+  
+                <StatusWorkflowDropdown 
+                  currentStatus={incident.status}
+                  incidentId={incident.incident_id}
+                  // onStatusChange={setCurrentStatus}
+                />
+              </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Created</p>
                 <p className="text-sm">{formatDateTime(incident.creation_time)}</p>

@@ -1,112 +1,65 @@
 
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, FileText, Settings, BarChart3, LogOut, User } from 'lucide-react';
-import {CustomerPortalDashboard} from './CustomerPortalDashboard';
-import {CustomerPortalCaseManagement} from './CustomerPortalCaseManagement';
-import {CustomerPortalReport} from './CustomerPortalReport';
-import {CustomerPortalSettings} from './CustomerPortalSettings';
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/AppSidebar";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { CustomerPortalDashboard } from './CustomerPortalDashboard';
+import CustomerPortalCaseManagement from './CustomerPortalCaseManagement';
+import CustomerPortalReport from './CustomerPortalReport';
+import CustomerPortalSettings from './CustomerPortalSettings';
+import { DarkModeToggle } from './DarkModeToggle';
 
-interface CustomerPortalUser {
+interface User {
   id: string;
   email: string;
-  full_name?: string;
-  customer_id?: string;
-  role?: string;
-  is_active?: boolean;
-  last_login?: string;
-  created_at?: string;
-  updated_at?: string;
+  full_name: string;
+  customer_id: string;
 }
 
 interface CustomerPortalLayoutProps {
-  user: CustomerPortalUser;
-  onLogout: () => void;
+  user: User;
 }
 
-export function CustomerPortalLayout({ user, onLogout }: CustomerPortalLayoutProps) {
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const navigate = useNavigate();
+export function CustomerPortalLayout({ user }: CustomerPortalLayoutProps) {
+  const [activeSection, setActiveSection] = useState('dashboard');
 
-  const handleLogout = () => {
-    onLogout();
-    navigate('/customer-portal');
-  };
-
-  // Create a user object with required full_name for components that need it
-  const userWithFullName = {
-    ...user,
-    full_name: user.full_name || user.email.split('@')[0] || 'User'
+  const renderContent = () => {
+    switch (activeSection) {
+      case 'dashboard':
+        return <CustomerPortalDashboard user={user} />;
+      case 'case-management':
+        return <CustomerPortalCaseManagement />;
+      case 'reports':
+        return <CustomerPortalReport customerId={user.customer_id} />;
+      case 'settings':
+        return <CustomerPortalSettings user={user} />;
+      default:
+        return <CustomerPortalDashboard user={user} />;
+    }
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Card className="rounded-none border-0 border-b">
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
+    <SidebarProvider>
+      <div className="min-h-screen flex w-full">
+        <AppSidebar activeSection={activeSection} onSectionChange={setActiveSection} />
+        <div className="flex-1 flex flex-col w-full">
+          <header className="bg-background border-b border-border px-6 py-4 flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <Avatar>
-                <AvatarFallback>
-                  <User className="w-5 h-5" />
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <CardTitle className="text-lg">{userWithFullName.full_name}</CardTitle>
-                <p className="text-sm text-muted-foreground">{user.email}</p>
-              </div>
+              <SidebarTrigger />
+              <h1 className="text-2xl font-bold text-foreground">Customer Portal</h1>
             </div>
-            <Button variant="outline" onClick={handleLogout} className="flex items-center space-x-2">
-              <LogOut className="w-4 h-4" />
-              <span>Logout</span>
-            </Button>
-          </div>
-        </CardHeader>
-      </Card>
-
-      <div className="container mx-auto p-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="dashboard" className="flex items-center space-x-2">
-              <BarChart3 className="w-4 h-4" />
-              <span>Dashboard</span>
-            </TabsTrigger>
-            <TabsTrigger value="cases" className="flex items-center space-x-2">
-              <Building2 className="w-4 h-4" />
-              <span>Case Management</span>
-            </TabsTrigger>
-            <TabsTrigger value="reports" className="flex items-center space-x-2">
-              <FileText className="w-4 h-4" />
-              <span>Reports</span>
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="flex items-center space-x-2">
-              <Settings className="w-4 h-4" />
-              <span>Settings</span>
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="dashboard" className="mt-6">
-            <CustomerPortalDashboard user={userWithFullName} />
-          </TabsContent>
-
-          <TabsContent value="cases" className="mt-6">
-            <CustomerPortalCaseManagement user={userWithFullName} />
-          </TabsContent>
-
-          <TabsContent value="reports" className="mt-6">
-            <CustomerPortalReport />
-          </TabsContent>
-
-          <TabsContent value="settings" className="mt-6">
-            <CustomerPortalSettings user={userWithFullName} />
-          </TabsContent>
-        </Tabs>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-muted-foreground">
+                Welcome, {user.full_name}
+              </span>
+              <DarkModeToggle />
+            </div>
+          </header>
+          <main className="flex-1 p-6 bg-background w-full">
+            {renderContent()}
+          </main>
+        </div>
       </div>
-    </div>
+    </SidebarProvider>
   );
 }
-
-export default CustomerPortalLayout;

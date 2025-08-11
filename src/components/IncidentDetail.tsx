@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import {
   Card,
@@ -35,6 +34,7 @@ import EntitiesSection from "./incident/EntitiesSection";
 import TagsSection from "./incident/TagsSection";
 import CommentsSection from "./incident/CommentsSection";
 import AnalystEnrichmentSection from "./incident/AnalystEnrichmentSection";
+import { RequestChangeModal } from "./RequestChangeModal";
 
 interface IncidentDetailProps {
   incidentId: string;
@@ -110,53 +110,11 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
     }
   }
 
-  async function submitRequestChange() {
-    if (!incident) return;
-
-    try {
-      const payload = {
-        p_incident_id: incident.incident_number,
-        p_analyst_name: incident.analyst_name || "Unassigned",
-        p_jira_ticket_id: "TEST-123",
-        p_assets: "test",
-      };
-
-      const response = await fetch(
-        "https://xmozpbewjkeisvpfzeca.supabase.co/rest/v1/rpc/create_request_change",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey:
-              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhtb3pwYmV3amtlaXN2cGZ6ZWNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyMDM3MDMsImV4cCI6MjA2Nzc3OTcwM30.goD6H9fLQPljKpifLlLIU6_Oo4jJO7b2-8GlkeqkiKA",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          `Failed to submit request: ${
-            errorData.message || response.statusText
-          }`
-        );
-      }
-
-      alert("Change request submitted successfully!");
-      const closeButton = document.querySelector('[data-state="open"] [data-dialog-close]') as HTMLElement;
-      if (closeButton) {
-        closeButton.click();
-      }
-    } catch (err) {
-      console.error("Error submitting request change:", err);
-      alert(
-        `Failed to submit request change: ${
-          err instanceof Error ? err.message : "Unknown error"
-        }`
-      );
+  useEffect(() => {
+    if (incident) {
+      setCurrentStatus(incident.status);
     }
-  }
+  }, [incident]);
 
   // Live countdown timer for SLA
   useEffect(() => {
@@ -413,15 +371,11 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                     <Send className="w-4 h-4 mr-2" />
                     Send Notif to Customer
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={submitRequestChange}
-                    className="flex items-center justify-center"
-                  >
-                    <Send className="w-4 h-4 mr-2" />
-                    Request Change
-                  </Button>
+                  <RequestChangeModal
+                    incidentId={incident.incident_id}
+                    incidentNumber={incident.incident_number}
+                    analystName={incident.analyst_name || "Unassigned"}
+                  />
                 </div>
               </div>
             </div>

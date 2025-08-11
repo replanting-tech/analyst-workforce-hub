@@ -13,7 +13,10 @@ export const useStatusTransitions = (currentStatus: string) => {
     queryKey: ['status-transitions', currentStatus],
     queryFn: async () => {
       const { data, error } = await supabase
-        .rpc('get_allowed_status_transitions', { current_status: currentStatus });
+        .from('incident_status_transitions')
+        .select('to_status, transition_name, requires_approval')
+        .eq('from_status', currentStatus)
+        .order('transition_name');
 
       if (error) {
         console.error('Error fetching status transitions:', error);

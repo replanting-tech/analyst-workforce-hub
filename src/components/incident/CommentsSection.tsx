@@ -1,8 +1,10 @@
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { MessageSquare, User } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
+import { AddCommentForm } from './AddCommentForm';
+import { CommentItem } from './CommentItem';
+import { Comment } from '@/hooks/useComments';
 
 interface CommentData {
   id: string;
@@ -19,15 +21,31 @@ interface CommentData {
 
 interface CommentsSectionProps {
   comments?: string[];
+  incidentId: string;
 }
 
-const CommentsSection: React.FC<CommentsSectionProps> = ({ comments }) => {
-  const parseComments = (commentsArray?: string[]): CommentData[] => {
+const CommentsSection: React.FC<CommentsSectionProps> = ({ comments, incidentId }) => {
+  const parseComments = (commentsArray?: string[]): Comment[] => {
     if (!commentsArray || commentsArray.length === 0) return [];
     
     return commentsArray.map(commentStr => {
       try {
-        return JSON.parse(commentStr);
+        const parsed = JSON.parse(commentStr);
+        
+        // Handle both old Azure Sentinel format and new format
+        if (parsed.properties) {
+          // Old Azure Sentinel format
+          return {
+            id: parsed.id || `legacy-${Date.now()}-${Math.random()}`,
+            message: parsed.properties.message,
+            author: parsed.properties.author.name,
+            createdAt: parsed.properties.createdTimeUtc,
+            images: []
+          };
+        } else {
+          // New format
+          return parsed as Comment;
+        }
       } catch (error) {
         console.error('Error parsing comment:', error);
         return null;
@@ -36,9 +54,10 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({ comments }) => {
   };
 
   const parsedComments = parseComments(comments);
+  const currentUser = "Current User"; // Replace with actual current user from auth context
 
   const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString("id-ID", {
+    return new Date(dateString).toLocaleString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -46,25 +65,6 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({ comments }) => {
       minute: "2-digit",
     });
   };
-
-  if (parsedComments.length === 0) {
-    return (
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <MessageSquare className="w-5 h-5" />
-            Comments
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center text-muted-foreground py-8">
-            <MessageSquare className="mx-auto h-12 w-12 mb-4" />
-            <p>No comments found for this incident</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <Card>
@@ -74,33 +74,29 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({ comments }) => {
           Comments ({parsedComments.length})
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {parsedComments.map((comment, index) => (
-            <div key={index} className="border-l-4 border-primary/20 pl-4 py-2">
-              <div className="flex items-start gap-3">
-                <Avatar className="w-8 h-8">
-                  <AvatarFallback className="text-xs">
-                    <User className="w-4 h-4" />
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium">
-                      {comment.properties.author.name}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDateTime(comment.properties.createdTimeUtc)}
-                    </span>
-                  </div>
-                  <div className="text-sm text-muted-foreground bg-muted p-3 rounded">
-                    {comment.properties.message}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+      <CardContent className="space-y-4">
+        {/* Add Comment Form */}
+        <AddCommentForm incidentId={incidentId} author={currentUser} />
+        
+        {/* Comments List */}
+        {parsedComments.length === 0 ? (
+          <div className="text-center text-muted-foreground py-8">
+            <MessageSquare className="mx-auto h-12 w-12 mb-4" />
+            <p>No comments yet. Be the first to add a comment!</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {parsedComments.map((comment) => (
+              <CommentItem
+                key={comment.id}
+                comment={comment}
+                incidentId={incidentId}
+                currentUser={currentUser}
+                canEdit={true}
+              />
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -1,72 +1,230 @@
-import { useRef } from 'react';
-import { Editor } from '@tinymce/tinymce-react';
-// import './App.css';
 
-export default function App() {
-  const editorRef = useRef(null);
-if (editorRef.current) {
+import { useRef, useState, useEffect } from 'react';
+import { Editor } from '@tinymce/tinymce-react';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Save, History, FileText, RotateCcw } from 'lucide-react';
+import { useReportTemplates, useCurrentReportVersion, useSaveReportVersion, useReportVersions, useRestoreReportVersion, type ReportVersion } from '@/hooks/useReportTemplates';
+import { parseTemplateVariables } from '@/utils/templateParser';
+import type { Incident } from '@/hooks/useIncidents';
+import { toast } from 'sonner';
+
+interface RichTextEditorProps {
+  incident: Incident;
+}
+
+export default function RichTextEditor({ incident }: RichTextEditorProps) {
+  const editorRef = useRef<any>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [currentContent, setCurrentContent] = useState<string>('');
+  const [changeSummary, setChangeSummary] = useState<string>('');
+  const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false);
+
+  const { data: templates, isLoading: templatesLoading } = useReportTemplates();
+  const { data: currentVersion } = useCurrentReportVersion(incident.incident_id);
+  const { data: versions = [] } = useReportVersions(incident.incident_id);
+  const saveVersion = useSaveReportVersion();
+  const restoreVersion = useRestoreReportVersion();
+
+  // Load current version or default template on mount
+  useEffect(() => {
+    if (currentVersion) {
+      setCurrentContent(currentVersion.content);
+      if (editorRef.current) {
+        editorRef.current.setContent(currentVersion.content);
+      }
+    } else if (templates?.length > 0) {
+      const defaultTemplate = templates.find(t => t.is_default) || templates[0];
+      const parsedContent = parseTemplateVariables(defaultTemplate.template_content, incident);
+      setCurrentContent(parsedContent);
+      setSelectedTemplateId(defaultTemplate.id);
+      if (editorRef.current) {
+        editorRef.current.setContent(parsedContent);
+      }
     }
-    const initialValue = `<table style="border-collapse: collapse; width: 100%; max-width: 100%; font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #333;">
-  <tbody>
-    <tr>
-      <td style="border: 1px solid #ccc; padding: 8px; font-weight: bold;">Ticket ID</td>
-      <td style="border: 1px solid #ccc; padding: 8px;">CSOC-18254</td>
-    </tr>
-    <tr>
-      <td style="border: 1px solid #ccc; padding: 8px; font-weight: bold;">Ticket Name</td>
-      <td style="border: 1px solid #ccc; padding: 8px;">DEEP INSTINCT/Dual_use_investigation_tool/High/10.10.11.80/Detected</td>
-    </tr>
-    <tr>
-      <td style="border: 1px solid #ccc; padding: 8px; font-weight: bold;">Log Source</td>
-      <td style="border: 1px solid #ccc; padding: 8px;">Deep Instinct</td>
-    </tr>
-    <tr>
-      <td style="border: 1px solid #ccc; padding: 8px; font-weight: bold;">Alert Date</td>
-      <td style="border: 1px solid #ccc; padding: 8px;">2025-06-13T05:08:30.8509285Z</td>
-    </tr>
-    <tr>
-      <td style="border: 1px solid #ccc; padding: 8px; font-weight: bold;">Incident Severity</td>
-      <td style="border: 1px solid #ccc; padding: 8px;">MEDIUM</td>
-    </tr>
-    <tr>
-      <td style="border: 1px solid #ccc; padding: 8px; font-weight: bold;">Entity</td>
-      <td style="border: 1px solid #ccc; padding: 8px;">
-        Source IP: 10.10.11.80<br />
-        Asset Hostname: GWO8UCDL525001<br />
-        Username: COMPNET\\pieter
-      </td>
-    </tr>
-    <tr>
-      <td style="border: 1px solid #ccc; padding: 8px; font-weight: bold;">Description</td>
-      <td style="border: 1px solid #ccc; padding: 8px;">
-        Threat Category: No. threat category found<br /><br />
-        The file <strong>ncat.exe</strong> is a network utility commonly associated with the Nmap suite, which has been identified as potentially malicious. It is often exploited by threat actors for activities such as data exfiltration, establishing reverse shells, and facilitating command-and-control operations. The involvement of a reputable security vendor like CrowdStrike highlights the need for caution and further investigation.
-        <br /><br />
-        {{incident_additional_info}}
-      </td>
-    </tr>
-    <tr>
-      <td style="border: 1px solid #ccc; padding: 8px; font-weight: bold;">Threat Indicators</td>
-      <td style="border: 1px solid #ccc; padding: 8px;">
-        <strong>Filehash analysis:</strong> ncat.exe has been flagged as malicious by 2 out of 72 security vendors, indicating a potential risk despite its legitimate use within the Nmap suite. This discrepancy in detection rates suggests that while the file may be benign, its presence should be carefully scrutinized due to its known abuse in cyber threats.
-      </td>
-    </tr>
-    <tr>
-      <td style="border: 1px solid #ccc; padding: 8px; font-weight: bold;">Technical Recommendation</td>
-      <td style="border: 1px solid #ccc; padding: 8px;">
-        Delete the file if its installation was not intentional or cannot be verified. Only download ncat.exe from official sources, such as nmap.org, and conduct a full antivirus/malware scan using trusted security solutions. Additionally, verify the file's location; if found in unusual directories like Downloads or Temp, treat it with heightened caution.
-      </td>
-    </tr>
-  </tbody>
-</table>
-`;
+  }, [currentVersion, templates, incident]);
+
+  const handleTemplateChange = (templateId: string) => {
+    const template = templates?.find(t => t.id === templateId);
+    if (template && editorRef.current) {
+      const parsedContent = parseTemplateVariables(template.template_content, incident);
+      editorRef.current.setContent(parsedContent);
+      setCurrentContent(parsedContent);
+      setSelectedTemplateId(templateId);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!editorRef.current) return;
+
+    const content = editorRef.current.getContent();
+    setCurrentContent(content);
+
+    try {
+      await saveVersion.mutateAsync({
+        incidentId: incident.incident_id,
+        content,
+        templateId: selectedTemplateId || undefined,
+        changeSummary: changeSummary || 'Content updated',
+        createdBy: incident.analyst_name || 'analyst'
+      });
+
+      setChangeSummary('');
+      toast.success('Report saved successfully');
+    } catch (error) {
+      console.error('Error saving report:', error);
+      toast.error('Failed to save report');
+    }
+  };
+
+  const handleRestoreVersion = async (version: ReportVersion) => {
+    try {
+      await restoreVersion.mutateAsync({
+        incidentId: incident.incident_id,
+        versionId: version.id
+      });
+
+      if (editorRef.current) {
+        editorRef.current.setContent(version.content);
+      }
+      setCurrentContent(version.content);
+      setIsVersionDialogOpen(false);
+      toast.success(`Restored to version ${version.version_number}`);
+    } catch (error) {
+      console.error('Error restoring version:', error);
+      toast.error('Failed to restore version');
+    }
+  };
+
+  const formatDateTime = (dateString: string) => {
+    return new Date(dateString).toLocaleString('id-ID', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
 
   return (
-    <>
+    <div className="space-y-4">
+      {/* Template Selection and Actions */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            <Label>Template:</Label>
+          </div>
+          <Select
+            value={selectedTemplateId}
+            onValueChange={handleTemplateChange}
+            disabled={templatesLoading}
+          >
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="Select a template" />
+            </SelectTrigger>
+            <SelectContent>
+              {templates?.map((template) => (
+                <SelectItem key={template.id} value={template.id}>
+                  <div className="flex items-center gap-2">
+                    {template.name}
+                    {template.is_default && <Badge variant="secondary" className="text-xs">Default</Badge>}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Dialog open={isVersionDialogOpen} onOpenChange={setIsVersionDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <History className="w-4 h-4 mr-2" />
+                Versions ({versions.length})
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Report Versions</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                {versions.map((version) => (
+                  <div
+                    key={version.id}
+                    className={`p-4 border rounded-lg ${
+                      version.is_current ? 'border-primary bg-primary/5' : 'border-border'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={version.is_current ? 'default' : 'secondary'}>
+                          Version {version.version_number}
+                        </Badge>
+                        {version.is_current && <Badge variant="outline">Current</Badge>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">
+                          {formatDateTime(version.created_at)}
+                        </span>
+                        {!version.is_current && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRestoreVersion(version)}
+                            disabled={restoreVersion.isPending}
+                          >
+                            <RotateCcw className="w-3 h-3 mr-1" />
+                            Restore
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    {version.change_summary && (
+                      <p className="text-sm text-muted-foreground mb-2">{version.change_summary}</p>
+                    )}
+                    <div className="text-xs text-muted-foreground">
+                      Created by: {version.created_by || 'Unknown'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Button onClick={handleSave} disabled={saveVersion.isPending}>
+            <Save className="w-4 h-4 mr-2" />
+            {saveVersion.isPending ? 'Saving...' : 'Save'}
+          </Button>
+        </div>
+      </div>
+
+      {/* Change Summary Input */}
+      <div className="space-y-2">
+        <Label htmlFor="change-summary">Change Summary (optional)</Label>
+        <Textarea
+          id="change-summary"
+          placeholder="Describe what changes you made..."
+          value={changeSummary}
+          onChange={(e) => setChangeSummary(e.target.value)}
+          className="h-16"
+        />
+      </div>
+
+      {/* Editor */}
       <Editor
         apiKey='9pxbmembo1uetj3qto7w4t0ce6vi14e321zvnvyip544v0yi'
-        onInit={ (_evt, editor) => editorRef.current = editor }
-        initialValue={initialValue}
+        onInit={(_evt, editor) => {
+          editorRef.current = editor;
+          if (currentContent) {
+            editor.setContent(currentContent);
+          }
+        }}
+        initialValue={currentContent}
         init={{
           height: 500,
           menubar: false,
@@ -81,7 +239,19 @@ if (editorRef.current) {
             'removeformat | help',
           content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }'
         }}
+        onEditorChange={(content) => setCurrentContent(content)}
       />
-    </>
+
+      {/* Current Version Info */}
+      {currentVersion && (
+        <div className="text-sm text-muted-foreground flex items-center gap-4">
+          <span>Current: Version {currentVersion.version_number}</span>
+          <span>Last saved: {formatDateTime(currentVersion.created_at)}</span>
+          {currentVersion.created_by && (
+            <span>by {currentVersion.created_by}</span>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

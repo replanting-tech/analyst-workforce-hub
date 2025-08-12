@@ -8,6 +8,7 @@ export interface Comment {
   message: string;
   author: string;
   createdAt: string;
+  updatedAt?: string;
   images?: string[];
 }
 

@@ -242,7 +242,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <RichTextEditor />
+            <RichTextEditor incident={incident} />
           </CardContent>
         </Card>
 
@@ -290,7 +290,10 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
           </TabsContent>
         </Tabs>
 
-            <CommentsSection comments={incident.comments} />
+            <CommentsSection 
+              comments={incident.comments} 
+              incidentId={incident.incident_id}
+            />
       </div>
 
       {/* Right Column - Sidebar (25%) */}

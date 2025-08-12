@@ -448,6 +448,89 @@ export type Database = {
         }
         Relationships: []
       }
+      incident_report_templates: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          is_default: boolean | null
+          name: string
+          template_content: string
+          updated_at: string | null
+          variables: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          name: string
+          template_content: string
+          updated_at?: string | null
+          variables?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          name?: string
+          template_content?: string
+          updated_at?: string | null
+          variables?: Json | null
+        }
+        Relationships: []
+      }
+      incident_report_versions: {
+        Row: {
+          change_summary: string | null
+          content: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          incident_id: string
+          is_current: boolean | null
+          template_id: string | null
+          version_number: number
+        }
+        Insert: {
+          change_summary?: string | null
+          content: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          incident_id: string
+          is_current?: boolean | null
+          template_id?: string | null
+          version_number?: number
+        }
+        Update: {
+          change_summary?: string | null
+          content?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          incident_id?: string
+          is_current?: boolean | null
+          template_id?: string | null
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incident_report_versions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "incident_report_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incident_status_log: {
         Row: {
           change_reason: string | null
@@ -519,6 +602,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      incident_status_transitions: {
+        Row: {
+          auto_transition: boolean | null
+          created_at: string | null
+          from_status: string
+          id: string
+          requires_approval: boolean | null
+          to_status: string
+          transition_name: string
+        }
+        Insert: {
+          auto_transition?: boolean | null
+          created_at?: string | null
+          from_status: string
+          id?: string
+          requires_approval?: boolean | null
+          to_status: string
+          transition_name: string
+        }
+        Update: {
+          auto_transition?: boolean | null
+          created_at?: string | null
+          from_status?: string
+          id?: string
+          requires_approval?: boolean | null
+          to_status?: string
+          transition_name?: string
+        }
+        Relationships: []
+      }
+      incident_status_workflow: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          sort_order: number | null
+          status_code: string
+          status_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          sort_order?: number | null
+          status_code: string
+          status_name: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          sort_order?: number | null
+          status_code?: string
+          status_name?: string
+        }
+        Relationships: []
       }
       incident_steps: {
         Row: {
@@ -1146,6 +1289,14 @@ export type Database = {
         Args: { seconds: number }
         Returns: string
       }
+      get_allowed_status_transitions: {
+        Args: { current_status: string }
+        Returns: {
+          to_status: string
+          transition_name: string
+          requires_approval: boolean
+        }[]
+      }
       get_pending_alerts: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -1210,6 +1361,22 @@ export type Database = {
               p_jira_ticket_id?: string
             }
         Returns: undefined
+      }
+      update_incident_status_with_validation: {
+        Args: {
+          p_incident_id: string
+          p_new_status: string
+          p_analyst_code?: string
+          p_jira_ticket_id?: string
+          p_customer_notification?: string
+          p_changed_by?: string
+          p_change_reason?: string
+        }
+        Returns: Json
+      }
+      validate_status_transition: {
+        Args: { p_from_status: string; p_to_status: string }
+        Returns: boolean
       }
     }
     Enums: {

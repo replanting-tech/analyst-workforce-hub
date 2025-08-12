@@ -105,7 +105,7 @@ export const AddCommentForm: React.FC<AddCommentFormProps> = ({ incidentId, auth
                     <ImageIcon className="w-4 h-4 mr-2" />
                     Add Images
                   </span>
-                </label>
+                </Button>
               </label>
               <input
                 id="image-upload"

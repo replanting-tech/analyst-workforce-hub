@@ -12,6 +12,7 @@ export interface Comment {
 }
 
 export const useComments = (incidentId: string) => {
+  incidentId = '687c1acd-b87a-4fa3-8b15-9a3220d0f99c'
   const queryClient = useQueryClient();
   const [isUploading, setIsUploading] = useState(false);
 

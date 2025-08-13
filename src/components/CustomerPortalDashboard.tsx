@@ -1,18 +1,17 @@
 
-import React from 'react';
-import { CustomerDashboard } from './CustomerDashboard';
+import { useCustomerAuth } from '@/hooks/useCustomerAuth';
+import CustomerDashboard from './CustomerDashboard';
 
-interface User {
-  id: string;
-  email: string;
-  full_name: string;
-  customer_id: string;
-}
+export default function CustomerPortalDashboard() {
+  const { user, isLoading } = useCustomerAuth();
 
-interface CustomerPortalDashboardProps {
-  user: User;
-}
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
-export function CustomerPortalDashboard({ user }: CustomerPortalDashboardProps) {
-  return <CustomerDashboard user={user} />;
+  if (!user) {
+    return <div>Access denied</div>;
+  }
+
+  return <CustomerDashboard />;
 }

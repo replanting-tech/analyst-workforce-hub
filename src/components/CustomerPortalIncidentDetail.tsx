@@ -1,358 +1,207 @@
-
-import React from 'react';
+import { useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, AlertTriangle, Clock, Building2, User, FileText, Check, X } from 'lucide-react';
-import { useIncidentById } from '@/hooks/useIncidents';
-import { StatusWorkflowDropdown } from './StatusWorkflowDropdown';
-import RichTextEditor from './RichTextEditor';
-import { useRequestChanges, useUpdateRequestChangeStatus } from '@/hooks/useRequestChanges';
-import { useToast } from '@/hooks/use-toast';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import { FileText, Calendar, User, Building2, AlertTriangle, ExternalLink } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import RichTextEditor from '@/components/RichTextEditor';
+import { useCustomerAuth } from '@/hooks/useCustomerAuth';
 
-interface CustomerPortalIncidentDetailProps {
-  incidentId: string;
-  onBack: () => void;
+interface RequestChange {
+  id: string;
+  incident_number: string;
+  jira_ticket_id: string;
+  analyst_id: string;
+  analyst_name: string;
+  assets: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  indicators: {
+    id: string;
+    type: string;
+    value: string;
+    description: string;
+    status: string;
+    created_at: string;
+  }[];
 }
 
-export function CustomerPortalIncidentDetail({ incidentId, onBack }: CustomerPortalIncidentDetailProps) {
-  const { data: incident, isLoading, error } = useIncidentById(incidentId);
-  const { data: requestChanges = [], isLoading: isLoadingRequestChanges } = useRequestChanges(incident?.incident_number);
-  const updateRequestStatus = useUpdateRequestChangeStatus();
-  const { toast } = useToast();
+export default function CustomerPortalIncidentDetail() {
+  const { incidentId } = useParams<{ incidentId: string }>();
+  const { user } = useCustomerAuth();
 
-  const handleStatusUpdate = async (id: string, status: 'approved' | 'rejected') => {
-    try {
-      await updateRequestStatus.mutateAsync({ id, status });
-      toast({
-        title: 'Success',
-        description: `Request has been ${status} successfully.`,
-      });
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to update request status. Please try again.',
-        variant: 'destructive',
-      });
-    }
-  };
+  const { data: incident, isLoading } = useQuery({
+    queryKey: ['customer-incident', incidentId],
+    queryFn: async () => {
+      if (!user?.customer_id) return null;
+      
+      const { data, error } = await supabase
+        .from('v_incident_sla_details')
+        .select('*')
+        .eq('incident_id', incidentId)
+        .eq('customer_id', user.customer_id)
+        .single();
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'Very High': return 'bg-red-100 text-red-800 border-red-200';
-      case 'High': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'Medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'Low': return 'bg-blue-100 text-blue-800 border-blue-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
+      if (error) {
+        console.error('Error fetching incident:', error);
+        throw error;
+      }
 
-  const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+      return data;
+    },
+    enabled: !!incidentId && !!user?.customer_id,
+  });
 
+  const { data: requestChanges } = useQuery({
+    queryKey: ['customer-request-changes', incidentId],
+    queryFn: async () => {
+      if (!incidentId) return [];
+      
+      const { data, error } = await supabase
+        .from('v_request_changes_indicators')
+        .select('*')
+        .eq('incident_id', incidentId);
 
-  const formatRawLogs = (rawLogs: string) => {
-    try {
-      const parsed = JSON.parse(rawLogs);
-      return JSON.stringify(parsed, null, 2);
-    } catch {
-      return rawLogs;
-    }
-  };
+      if (error) {
+        console.error('Error fetching request changes:', error);
+        return [];
+      }
+
+      return data || [];
+    },
+    enabled: !!incidentId,
+  });
 
   if (isLoading) {
-    return (
-      <div className="space-y-4 p-4 sm:p-6">
-        <Button variant="ghost" onClick={onBack} className="mb-4">
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Cases
-        </Button>
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-3/4"></div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="h-24 bg-gray-200 rounded"></div>
-            <div className="h-24 bg-gray-200 rounded"></div>
-          </div>
-          <div className="h-48 bg-gray-200 rounded"></div>
-        </div>
-      </div>
-    );
+    return <div className="p-6">Loading...</div>;
   }
 
-  if (error || !incident) {
-    return (
-      <div className="space-y-4 p-4 sm:p-6">
-        <Button variant="ghost" onClick={onBack} className="mb-4">
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Cases
-        </Button>
-        <div className="text-center text-red-600">
-          <AlertTriangle className="mx-auto h-12 w-12 mb-4" />
-          <h3 className="text-lg font-medium">Error loading incident details</h3>
-          <p className="text-sm">Incident not found or failed to load</p>
-        </div>
-      </div>
-    );
+  if (!incident) {
+    return <div className="p-6">Incident not found</div>;
   }
 
   return (
-    <div className="space-y-6 p-4 sm:p-6">
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" onClick={onBack}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Cases
-        </Button>
-        <Badge className={getPriorityColor(incident.priority)}>
-          {incident.priority} Priority
-        </Badge>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5" />
-                Incident #{incident.incident_number}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <RichTextEditor incident={incident} />
-              <div className="space-y-4 mt-5">
-                <CardHeader>
-                  <CardTitle>Raw Logs</CardTitle>
-                </CardHeader>
-                {incident.raw_logs ? (
-                  <CardContent>
-                    <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-xs overflow-auto max-h-128">
-                      <pre className="whitespace-pre-wrap">
-                        {formatRawLogs(incident.raw_logs)}
-                      </pre>
-                    </div>
-                  </CardContent>
+    <div className="container mx-auto p-6 space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between">
+            <div>
+              <CardTitle className="text-2xl font-bold">{incident.incident_number}</CardTitle>
+              <p className="text-muted-foreground">
+                Created {formatDistanceToNow(new Date(incident.creation_time), { addSuffix: true })}
+              </p>
+            </div>
+            <Badge variant="secondary">{incident.priority}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                <span>Jira Ticket:</span>
+                {incident.jira_ticket_id ? (
+                  <a
+                    href={`https://your-jira-instance.com/browse/${incident.jira_ticket_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-500 hover:underline"
+                  >
+                    {incident.jira_ticket_id}
+                    <ExternalLink className="w-3 h-3 ml-1" />
+                  </a>
                 ) : (
-                  <div className="text-center text-muted-foreground py-8">
-                    <FileText className="mx-auto h-12 w-12 mb-4" />
-                    <p>No raw logs available for this incident</p>
-                  </div>
+                  <span>N/A</span>
                 )}
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Entities */}
-          {incident.entities && incident.entities.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Affected Entities</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {incident.entities.map((entityStr, index) => {
-                    try {
-                      const entity = JSON.parse(entityStr);
-                      return (
-                        <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                          <div>
-                            <p className="font-medium">{entity.kind}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {entity.properties?.friendlyName || entity.properties?.hashValue || entity.properties?.fileName || 'N/A'}
-                            </p>
-                          </div>
-                          <Badge variant="outline">{entity.kind}</Badge>
-                        </div>
-                      );
-                    } catch {
-                      return (
-                        <div key={index} className="p-3 bg-muted rounded-lg">
-                          <p className="text-sm">{entityStr}</p>
-                        </div>
-                      );
-                    }
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Basic Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <AlertTriangle className="w-5 h-5" />
-                Basic Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 gap-4">
-                <Button className={"w-full " + getPriorityColor(incident.priority)} variant="outline">
-                  {incident.priority}
-                </Button>
-  
-                <StatusWorkflowDropdown 
-                  currentStatus={incident.status}
-                  incidentId={incident.incident_id}
-                  // onStatusChange={setCurrentStatus}
-                />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                <span>Reported:</span>
+                <span>{new Date(incident.creation_time).toLocaleDateString()}</span>
               </div>
-              <div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Created</p>
-                  <p className="text-sm">{formatDateTime(incident.creation_time)}</p>
-                </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4" />
+                <span>Analyst:</span>
+                <span>{incident.analyst_name || 'Unassigned'}</span>
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4" />
+                <span>Customer:</span>
+                <span>{incident.customer_name}</span>
+              </div>
+            </div>
+          </div>
+          <Separator />
+          <div>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              <span>Status:</span>
+              <span>{incident.status}</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="w-5 h-5" />
+            Incident Report
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <RichTextEditor incident={incident} isCustomerPortal={true} />
+        </CardContent>
+      </Card>
 
-                {incident.closed_time && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Closed</p>
-                    <p className="text-sm">{formatDateTime(incident.closed_time)}</p>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" />
+            Request Changes
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {requestChanges && requestChanges.length > 0 ? (
+            <div className="space-y-4">
+              {requestChanges.map((change: RequestChange) => (
+                <div key={change.id} className="border rounded-md p-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold">Request Change ID: {change.id}</h3>
+                    <Badge variant="outline">{change.status}</Badge>
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-
-          {/* Required Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Clock className="w-5 h-5" />
-                Required Actions
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {isLoadingRequestChanges ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-3/4" />
-                </div>
-              ) : requestChanges.length > 0 ? (
-                <div className="space-y-4">
-                  {requestChanges.map((request) => (
-                    <div key={request.id} className="border rounded-lg p-4 space-y-2">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-medium">Change Request</p>
-                          <p className="text-sm text-muted-foreground">
-                            Requested by: {request.analysts?.name || 'Unknown'}
-                          </p>
-                        </div>
-                        <Badge variant="outline">
-                          {request.status}
-                        </Badge>
-                      </div>
-                      
-                      <div className="mt-2">
-                        <p className="text-sm font-medium">Assets:</p>
-                        <p className="text-sm">{request.assets || 'No assets specified'}</p>
-                      </div>
-                      
-                      {request.status === 'waiting for approval' && (
-                        <div className="flex gap-2 pt-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="gap-1"
-                            onClick={() => handleStatusUpdate(request.id, 'approved')}
-                            disabled={updateRequestStatus.isPending}
-                          >
-                            <Check className="h-4 w-4" />
-                            Approve
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="destructive" 
-                            className="gap-1"
-                            onClick={() => handleStatusUpdate(request.id, 'rejected')}
-                            disabled={updateRequestStatus.isPending}
-                          >
-                            <X className="h-4 w-4" />
-                            Reject
-                          </Button>
-                        </div>
-                      )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <strong>Type:</strong> {change.indicators[0]?.type || 'N/A'}
                     </div>
-                  ))}
+                    <div>
+                      <strong>Value:</strong> {change.indicators[0]?.value || 'N/A'}
+                    </div>
+                    <div>
+                      <strong>Description:</strong> {change.indicators[0]?.description || 'N/A'}
+                    </div>
+                    <div>
+                      <strong>Created At:</strong> {new Date(change.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
                 </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No pending actions required.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* SLA Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Clock className="w-5 h-5" />
-                SLA Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">SLA Status</p>
-                <Badge 
-                  className={
-                    incident.sla_status === "breach" ? "bg-red-100 text-red-800" :
-                    incident.sla_status === "met" ? "bg-green-100 text-green-800" :
-                    "bg-blue-100 text-blue-800"
-                  }
-                >
-                  {incident.sla_status}
-                </Badge>
-              </div>
-              
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Resolution SLA</p>
-                <p className="text-sm">{incident.resolution_minutes} minutes</p>
-              </div>
-
-              {incident.sla_target_time && (
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">SLA Target</p>
-                  <p className="text-sm">{formatDateTime(incident.sla_target_time)}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Customer Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Building2 className="w-5 h-5" />
-                Customer Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Customer</p>
-                <p className="text-sm font-medium">{incident.customer_name}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Workspace</p>
-                <p className="text-xs text-muted-foreground font-mono">
-                  {incident.workspace_name}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+              ))}
+            </div>
+          ) : (
+            <p>No request changes found for this incident.</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

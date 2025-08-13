@@ -25,6 +25,7 @@ interface CommentsSectionProps {
 }
 
 const CommentsSection: React.FC<CommentsSectionProps> = ({ comments, incidentId }) => {
+  console.log(incidentId);
   const parseComments = (commentsArray?: string[]): Comment[] => {
     if (!commentsArray || commentsArray.length === 0) return [];
     
@@ -33,7 +34,7 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({ comments, incidentId 
         const parsed = JSON.parse(commentStr);
         
         // Handle both old Azure Sentinel format and new format
-        if (parsed.properties) {
+        if (parsed?.properties) {
           // Old Azure Sentinel format
           return {
             id: parsed.id || `legacy-${Date.now()}-${Math.random()}`,

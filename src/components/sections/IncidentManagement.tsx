@@ -560,7 +560,7 @@ export function IncidentManagement() {
                       <div className="flex items-center space-x-2">
                         <Button variant="outline" size="sm" asChild>
                           <Link to={`/incident/${incident.incident_id}`}>
-                            View Details
+                            View Details 
                           </Link>
                         </Button>
                         {incident.shouldShowSLAAlert && (

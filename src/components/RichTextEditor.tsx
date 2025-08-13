@@ -15,9 +15,10 @@ import { toast } from 'sonner';
 
 interface RichTextEditorProps {
   incident: Incident;
+  isCustomerPortal?: boolean;
 }
 
-export default function RichTextEditor({ incident }: RichTextEditorProps) {
+export default function RichTextEditor({ incident, isCustomerPortal = false }: RichTextEditorProps) {
   const editorRef = useRef<any>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [currentContent, setCurrentContent] = useState<string>('');
@@ -113,7 +114,7 @@ export default function RichTextEditor({ incident }: RichTextEditorProps) {
   return (
     <div className="space-y-4">
       {/* Template Selection and Actions */}
-      <div className="flex items-center justify-between gap-4">
+      {!isCustomerPortal && <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <FileText className="w-4 h-4" />
@@ -139,11 +140,52 @@ export default function RichTextEditor({ incident }: RichTextEditorProps) {
             </SelectContent>
           </Select>
         </div>
+      </div>}
 
+      {/* Editor */}
+      <Editor
+        apiKey='9pxbmembo1uetj3qto7w4t0ce6vi14e321zvnvyip544v0yi'
+        onInit={(_evt, editor) => {
+          editorRef.current = editor;
+          if (currentContent) {
+            editor.setContent(currentContent);
+            editor.mode.set((isCustomerPortal ? 'readonly' : 'design'));
+          }
+        }}
+        initialValue={currentContent}
+        init={{
+          height: 500,
+          menubar: false,
+          plugins: [
+            'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+            'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+            'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
+          ],
+          toolbar: 'undo redo | blocks | ' +
+            'bold italic forecolor | alignleft aligncenter ' +
+            'alignright alignjustify | bullist numlist outdent indent | ' +
+            'removeformat | help',
+          content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }'
+        }}
+        onEditorChange={(content) => setCurrentContent(content)}
+      />
+
+      {/* Current Version Info */}
+      {!isCustomerPortal && <div> 
+        <div className='flex items-center justify-between gap-2'>
+        {currentVersion && (
+          <div className="text-sm text-muted-foreground flex items-center gap-4">
+            <span>Current: Version {currentVersion.version_number}</span>
+            <span>Last saved: {formatDateTime(currentVersion.created_at)}</span>
+            {currentVersion.created_by && (
+              <span>by {currentVersion.created_by}</span>
+            )}
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <Dialog open={isVersionDialogOpen} onOpenChange={setIsVersionDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
+              <Button size="sm" variant="outline">
                 <History className="w-4 h-4 mr-2" />
                 Versions ({versions.length})
               </Button>
@@ -196,62 +238,13 @@ export default function RichTextEditor({ incident }: RichTextEditorProps) {
             </DialogContent>
           </Dialog>
 
-          <Button onClick={handleSave} disabled={saveVersion.isPending}>
+          <Button size="sm" onClick={handleSave} disabled={saveVersion.isPending}>
             <Save className="w-4 h-4 mr-2" />
             {saveVersion.isPending ? 'Saving...' : 'Save'}
           </Button>
         </div>
-      </div>
-
-      {/* Change Summary Input */}
-      <div className="space-y-2">
-        <Label htmlFor="change-summary">Change Summary (optional)</Label>
-        <Textarea
-          id="change-summary"
-          placeholder="Describe what changes you made..."
-          value={changeSummary}
-          onChange={(e) => setChangeSummary(e.target.value)}
-          className="h-16"
-        />
-      </div>
-
-      {/* Editor */}
-      <Editor
-        apiKey='9pxbmembo1uetj3qto7w4t0ce6vi14e321zvnvyip544v0yi'
-        onInit={(_evt, editor) => {
-          editorRef.current = editor;
-          if (currentContent) {
-            editor.setContent(currentContent);
-          }
-        }}
-        initialValue={currentContent}
-        init={{
-          height: 500,
-          menubar: false,
-          plugins: [
-            'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
-            'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
-            'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
-          ],
-          toolbar: 'undo redo | blocks | ' +
-            'bold italic forecolor | alignleft aligncenter ' +
-            'alignright alignjustify | bullist numlist outdent indent | ' +
-            'removeformat | help',
-          content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }'
-        }}
-        onEditorChange={(content) => setCurrentContent(content)}
-      />
-
-      {/* Current Version Info */}
-      {currentVersion && (
-        <div className="text-sm text-muted-foreground flex items-center gap-4">
-          <span>Current: Version {currentVersion.version_number}</span>
-          <span>Last saved: {formatDateTime(currentVersion.created_at)}</span>
-          {currentVersion.created_by && (
-            <span>by {currentVersion.created_by}</span>
-          )}
         </div>
-      )}
+      </div>}
     </div>
   );
 }

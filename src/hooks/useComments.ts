@@ -13,7 +13,6 @@ export interface Comment {
 }
 
 export const useComments = (incidentId: string) => {
-  incidentId = '687c1acd-b87a-4fa3-8b15-9a3220d0f99c'
   const queryClient = useQueryClient();
   const [isUploading, setIsUploading] = useState(false);
 
@@ -143,7 +142,7 @@ export const useComments = (incidentId: string) => {
       const currentComments = incident?.comments || [];
       const updatedComments = currentComments.filter((commentStr: string) => {
         const comment = JSON.parse(commentStr);
-        return comment.id !== commentId;
+        return comment?.id !== commentId;
       });
 
       const { error } = await supabase

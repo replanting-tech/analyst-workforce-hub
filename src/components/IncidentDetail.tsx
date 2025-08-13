@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -13,18 +12,10 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   AlertTriangle,
   Clock,
-  User,
   Building2,
   ExternalLink,
-  Calendar,
-  Target,
   FileText,
-  AlertCircle,
-  Database,
-  Mail,
   Send,
-  Upload,
-  ChevronRight,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import RichTextEditor from "./RichTextEditor";
@@ -35,6 +26,10 @@ import TagsSection from "./incident/TagsSection";
 import CommentsSection from "./incident/CommentsSection";
 import AnalystEnrichmentSection from "./incident/AnalystEnrichmentSection";
 import { RequestChangeModal } from "./RequestChangeModal";
+import { useRequestChanges, useUpdateRequestChangeStatus } from "@/hooks/useRequestChanges";
+import { useToast } from "@/components/ui/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Check, X } from "lucide-react";
 
 interface IncidentDetailProps {
   incidentId: string;
@@ -42,6 +37,25 @@ interface IncidentDetailProps {
 
 export function IncidentDetail({ incidentId }: IncidentDetailProps) {
   const { data: incident, isLoading, error } = useIncidentById(incidentId);
+  const { data: requestChanges = [], isLoading: isLoadingRequestChanges } = useRequestChanges(incident?.incident_number);
+  const updateRequestStatus = useUpdateRequestChangeStatus();
+  const { toast } = useToast();
+
+  const handleStatusUpdate = async (id: string, status: 'approved' | 'rejected') => {
+    try {
+      await updateRequestStatus.mutateAsync({ id, status });
+      toast({
+        title: 'Success',
+        description: `Request has been ${status} successfully.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update request status. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
   const [remainingTime, setRemainingTime] = useState<string>("");
   const [recommendationAnalysis, setRecommendationAnalysis] =
     useState<string>("");
@@ -266,7 +280,6 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
             />
           </TabsContent>
 
-
           <TabsContent value="raw-logs" className="mt-6">
             <Card>
               <CardHeader className="pb-3">
@@ -274,7 +287,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
               </CardHeader>
               <CardContent>
                 {incident.raw_logs ? (
-                  <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-xs overflow-auto max-h-96">
+                  <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-xs overflow-auto max-h-[600px]">
                     <pre className="whitespace-pre-wrap">
                       {formatRawLogs(incident.raw_logs)}
                     </pre>
@@ -457,6 +470,54 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
             </div>
           </CardContent>
         </Card>
+
+
+          {/* Required Actions */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Clock className="w-5 h-5" />
+                Required Actions
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {isLoadingRequestChanges ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                </div>
+              ) : requestChanges.length > 0 ? (
+                <div className="space-y-4">
+                  {requestChanges.map((request) => (
+                    <div key={request.id} className="border rounded-lg p-4 space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium">Change Request</p>
+                          <p className="text-sm text-muted-foreground">
+                          Requested by: {request.analyst_name || 'Unknown'}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-2">
+                        <p className="text-sm font-medium">Assets:</p>
+                        <p className="text-sm">{request.assets || 'No assets specified'}</p>
+                      </div>
+                      
+                      <Badge variant="outline">
+                          {request.status}
+                        </Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No pending actions required.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
 
         {/* Tags */}
         <TagsSection tags={incident.tags} />

@@ -39,14 +39,14 @@ serve(async (req) => {
     const uniqueRecipients = [...new Set(recipients)]
     
     const emailResponse = await resend.emails.send({
-      from: 'Incident Response System <noreply@compnet.co.id>',
+      from: 'Cyber Command System <noreply@compnet.co.id>',
       to: uniqueRecipients,
-      subject: 'Password Reset Request - Incident Response System',
+      subject: 'Password Reset Request - Cyber Command System',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="text-align: center; margin-bottom: 30px;">
             <h1 style="color: #2563eb; margin-bottom: 10px;">Password Reset Request</h1>
-            <p style="color: #6b7280; margin: 0;">Incident Response System</p>
+            <p style="color: #6b7280; margin: 0;">Cyber Command System</p>
           </div>
           
           <div style="background-color: #f8fafc; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
@@ -81,7 +81,7 @@ serve(async (req) => {
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
           
           <p style="color: #9ca3af; font-size: 12px; text-align: center;">
-            © 2025 Compnet Incident Response System. All rights reserved.
+            © 2025 Compnet Cyber Command System. All rights reserved.
           </p>
         </div>
       `,

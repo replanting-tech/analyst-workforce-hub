@@ -1,5 +1,5 @@
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface RequestChangeIndicator {
@@ -24,12 +24,11 @@ export interface RequestChange {
   indicators: RequestChangeIndicator[];
 }
 
-export const useRequestChanges = () => {
+export const useRequestChanges = (incidentNumber?: string) => {
   return useQuery({
-    queryKey: ['request-changes'],
+    queryKey: ['request-changes', incidentNumber],
     queryFn: async () => {
-      // Get request changes
-      const { data: requestChanges, error: requestError } = await supabase
+      let query = supabase
         .from('request_changes')
         .select(`
           id,
@@ -40,11 +39,17 @@ export const useRequestChanges = () => {
           status,
           created_at,
           updated_at,
-          analysts!inner (
+          analysts (
             name
           )
         `)
         .order('created_at', { ascending: false });
+
+      if (incidentNumber) {
+        query = query.eq('incident_number', incidentNumber);
+      }
+
+      const { data: requestChanges, error: requestError } = await query;
 
       if (requestError) {
         console.error('Error fetching request changes:', requestError);
@@ -97,7 +102,34 @@ export const useRequestChanges = () => {
         })
       );
 
-      return requestChangesWithIndicators;
+      return requestChangesWithIndicators || [];
+    },
+  });
+};
+
+export const useUpdateRequestChangeStatus = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { data, error } = await supabase
+        .from('request_changes')
+        .update({ 
+          status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', Number(id)) // Ensure ID is treated as a number
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+      return data;
+    },
+    onSuccess: (data) => {
+      // Invalidate and refetch
+      queryClient.invalidateQueries({ queryKey: ['request-changes', data.incident_number] });
     },
   });
 };

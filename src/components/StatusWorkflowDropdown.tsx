@@ -14,6 +14,7 @@ import { ChevronDown, AlertTriangle } from "lucide-react";
 import { useStatusTransitions, updateIncidentStatusWithValidation } from "@/hooks/useStatusWorkflow";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from "@/integrations/supabase/client";
 
 interface StatusWorkflowDropdownProps {
   currentStatus: string;
@@ -30,6 +31,7 @@ export function StatusWorkflowDropdown({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isUpdating, setIsUpdating] = useState(false);
+  const { mutate: updateStatus } = updateIncidentStatusWithValidation();
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -52,6 +54,24 @@ export function StatusWorkflowDropdown({
   };
 
   const handleStatusChange = async (newStatus: string, transitionName: string, requiresApproval: boolean) => {
+    // Check if transitioning from 'incident' to 'incident_closed' without approved customer notification
+    if (currentStatus === 'incident' && newStatus === 'incident_closed') {
+      const { data: incident } = await supabase
+        .from('incidents')
+        .select('customer_notification')
+        .eq('incident_id', incidentId)
+        .single();
+
+      if (incident?.customer_notification !== 'approved') {
+        toast({
+          title: "Action Required",
+          description: "Customer notification must be approved before closing the incident.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     if (requiresApproval) {
       const confirmed = window.confirm(
         `This transition "${transitionName}" requires approval. Are you sure you want to proceed?`
@@ -61,24 +81,23 @@ export function StatusWorkflowDropdown({
 
     setIsUpdating(true);
     try {
-      await updateIncidentStatusWithValidation(
+      await updateStatus({
         incidentId,
         newStatus,
-        undefined,
-        transitionName,
-        'System User'
-      );
+        jiraTicketId: transitionName, // Using transitionName as jiraTicketId since that's what the interface expects
+        changedBy: 'System User'
+      });
 
       toast({
         title: "Status Updated",
         description: `Incident status changed to ${getStatusDisplayName(newStatus)}`,
       });
 
-      // Invalidate queries to refresh data
+      if (onStatusChange) {
+        onStatusChange(newStatus);
+      }
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
       queryClient.invalidateQueries({ queryKey: ['incident', incidentId] });
-      
-      onStatusChange?.(newStatus);
     } catch (error) {
       console.error('Error updating status:', error);
       toast({

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertTriangle, Plus, Eye, CheckCircle, XCircle, Clock, Bell, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useIncidents } from '@/hooks/useIncidents';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -30,10 +31,12 @@ interface CustomerPortalCaseManagementProps {
 
 const ITEMS_PER_PAGE = 10;
 
-export function CustomerPortalCaseManagement({ user, onIncidentSelect }: CustomerPortalCaseManagementProps) {
+export function CustomerPortalCaseManagement({ user }: CustomerPortalCaseManagementProps) {
   const { data: incidents = [], isLoading } = useIncidents();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [selectedIncident, setSelectedIncident] = useState<any>(null);
+  const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [newCaseData, setNewCaseData] = useState({
     title: '',
@@ -41,7 +44,41 @@ export function CustomerPortalCaseManagement({ user, onIncidentSelect }: Custome
     priority: 'Medium',
     category: 'security_incident'
   });
+  const [recommendationContent, setRecommendationContent] = useState<string>('');
+  // onIncidentSelect
+  const onIncidentSelect = (incidentId: string) => {
+    console.log(incidentId);
+    setSelectedIncidentId(incidentId);
+    // setSelectedIncident(incident);
+    navigate(`/portal/cases/${incidentId}`);
+  };
   
+  // Fetch recommendation when incident is selected
+  useEffect(() => {
+    const fetchRecommendation = async () => {
+      if (!selectedIncident) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('incident_report_versions')
+          .select('content')
+          .eq('incident_id', selectedIncident.incident_id)
+          .eq('is_current', true)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (error) throw error;
+        setRecommendationContent(data?.content || 'No recommendations available');
+      } catch (error) {
+        console.error('Error fetching recommendation:', error);
+        setRecommendationContent('Error loading recommendations');
+      }
+    };
+
+    fetchRecommendation();
+  }, [selectedIncident]);
+
   // Filter incidents for this customer and pending notifications
   const customerIncidents = React.useMemo(() => 
     (incidents || []).filter(incident => 
@@ -203,11 +240,11 @@ export function CustomerPortalCaseManagement({ user, onIncidentSelect }: Custome
                           </DialogHeader>
                           <div className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
-                              <div>
+                              <div className='space-x-2'>
                                 <Label>Priority</Label>
                                 <Badge className={getPriorityColor(incident.priority)}>{incident.priority}</Badge>
                               </div>
-                              <div>
+                              <div className='space-x-2'>
                                 <Label>Status</Label>
                                 <Badge>{incident.status}</Badge>
                               </div>
@@ -220,9 +257,13 @@ export function CustomerPortalCaseManagement({ user, onIncidentSelect }: Custome
                                 <p className="text-sm">{incident.analyst_name || 'Unassigned'}</p>
                               </div>
                             </div>
+                              <div>
+                                <Label>Recommendation</Label>
+                                <div dangerouslySetInnerHTML={{ __html: recommendationContent }}></div>
+                              </div>
                             {incident.raw_logs && (
                               <div>
-                                <Label>Technical Details</Label>
+                                <Label>Raw Logs</Label>
                                 <div className="bg-gray-900 text-green-400 p-3 rounded text-xs font-mono max-h-40 overflow-auto">
                                   {JSON.stringify(JSON.parse(incident.raw_logs), null, 2)}
                                 </div>
@@ -234,7 +275,7 @@ export function CustomerPortalCaseManagement({ user, onIncidentSelect }: Custome
                                 className="flex-1"
                               >
                                 <CheckCircle className="w-4 h-4 mr-2" />
-                                Approve Notification
+                                Approve 
                               </Button>
                               <Button 
                                 variant="destructive" 
@@ -312,8 +353,7 @@ export function CustomerPortalCaseManagement({ user, onIncidentSelect }: Custome
                           size="sm"
                           onClick={() => onIncidentSelect(incident.incident_id)}
                         >
-                          <Eye className="w-4 h-4 mr-1" />
-                          View
+                          View Case
                         </Button>
                       </TableCell>
                     </TableRow>

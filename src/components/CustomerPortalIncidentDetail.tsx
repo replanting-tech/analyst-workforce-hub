@@ -3,10 +3,13 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, AlertTriangle, Clock, Building2, User, FileText } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Clock, Building2, User, FileText, Check, X } from 'lucide-react';
 import { useIncidentById } from '@/hooks/useIncidents';
 import { StatusWorkflowDropdown } from './StatusWorkflowDropdown';
 import RichTextEditor from './RichTextEditor';
+import { useRequestChanges, useUpdateRequestChangeStatus } from '@/hooks/useRequestChanges';
+import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface CustomerPortalIncidentDetailProps {
   incidentId: string;
@@ -14,8 +17,26 @@ interface CustomerPortalIncidentDetailProps {
 }
 
 export function CustomerPortalIncidentDetail({ incidentId, onBack }: CustomerPortalIncidentDetailProps) {
-  console.log('Incident:', incidentId);
   const { data: incident, isLoading, error } = useIncidentById(incidentId);
+  const { data: requestChanges = [], isLoading: isLoadingRequestChanges } = useRequestChanges(incident?.incident_number);
+  const updateRequestStatus = useUpdateRequestChangeStatus();
+  const { toast } = useToast();
+
+  const handleStatusUpdate = async (id: string, status: 'approved' | 'rejected') => {
+    try {
+      await updateRequestStatus.mutateAsync({ id, status });
+      toast({
+        title: 'Success',
+        description: `Request has been ${status} successfully.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update request status. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -105,14 +126,19 @@ export function CustomerPortalIncidentDetail({ incidentId, onBack }: CustomerPor
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <RichTextEditor />
-              <div className="space-y-4">
+              <RichTextEditor incident={incident} />
+              <div className="space-y-4 mt-5">
+                <CardHeader>
+                  <CardTitle>Raw Logs</CardTitle>
+                </CardHeader>
                 {incident.raw_logs ? (
-                  <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-xs overflow-auto max-h-96">
-                    <pre className="whitespace-pre-wrap">
-                      {formatRawLogs(incident.raw_logs)}
-                    </pre>
-                  </div>
+                  <CardContent>
+                    <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-xs overflow-auto max-h-128">
+                      <pre className="whitespace-pre-wrap">
+                        {formatRawLogs(incident.raw_logs)}
+                      </pre>
+                    </div>
+                  </CardContent>
                 ) : (
                   <div className="text-center text-muted-foreground py-8">
                     <FileText className="mx-auto h-12 w-12 mb-4" />
@@ -182,22 +208,88 @@ export function CustomerPortalIncidentDetail({ incidentId, onBack }: CustomerPor
                 />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Created</p>
-                <p className="text-sm">{formatDateTime(incident.creation_time)}</p>
-              </div>
-
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Assigned Analyst</p>
-                <p className="text-sm font-medium">
-                  {incident.analyst_name || 'Unassigned'} ({incident.analyst_code})
-                </p>
-              </div>
-
-              {incident.closed_time && (
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Closed</p>
-                  <p className="text-sm">{formatDateTime(incident.closed_time)}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Created</p>
+                  <p className="text-sm">{formatDateTime(incident.creation_time)}</p>
                 </div>
+
+                {incident.closed_time && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Closed</p>
+                    <p className="text-sm">{formatDateTime(incident.closed_time)}</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+
+          {/* Required Actions */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Clock className="w-5 h-5" />
+                Required Actions
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {isLoadingRequestChanges ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                </div>
+              ) : requestChanges.length > 0 ? (
+                <div className="space-y-4">
+                  {requestChanges.map((request) => (
+                    <div key={request.id} className="border rounded-lg p-4 space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium">Change Request</p>
+                          <p className="text-sm text-muted-foreground">
+                            Requested by: {request.analysts?.name || 'Unknown'}
+                          </p>
+                        </div>
+                        <Badge variant="outline">
+                          {request.status}
+                        </Badge>
+                      </div>
+                      
+                      <div className="mt-2">
+                        <p className="text-sm font-medium">Assets:</p>
+                        <p className="text-sm">{request.assets || 'No assets specified'}</p>
+                      </div>
+                      
+                      {request.status === 'waiting for approval' && (
+                        <div className="flex gap-2 pt-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="gap-1"
+                            onClick={() => handleStatusUpdate(request.id, 'approved')}
+                            disabled={updateRequestStatus.isPending}
+                          >
+                            <Check className="h-4 w-4" />
+                            Approve
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="destructive" 
+                            className="gap-1"
+                            onClick={() => handleStatusUpdate(request.id, 'rejected')}
+                            disabled={updateRequestStatus.isPending}
+                          >
+                            <X className="h-4 w-4" />
+                            Reject
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No pending actions required.
+                </p>
               )}
             </CardContent>
           </Card>

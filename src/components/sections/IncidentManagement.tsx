@@ -137,7 +137,7 @@ export function IncidentManagement() {
         let isNearBreach = false;
         let shouldShowSLAAlert = false;
 
-        if ((incident.status === 'open' || incident.status === 'incident') && incident.sla_target_time) {
+        if ((incident.status === 'active' || incident.status === 'incident') && incident.sla_target_time) {
           const target = new Date(incident.sla_target_time).getTime();
           const difference = target - now;
 
@@ -187,11 +187,11 @@ export function IncidentManagement() {
       // Sort incidents: breached first, then by time remaining (ascending), then by priority (descending)
       processed.sort((a, b) => {
         // First, prioritize active incidents
-        if ((a.status === 'open' || a.status === 'incident') && (b.status !== 'open' && b.status !== 'incident')) return -1;
-        if ((a.status !== 'open' && a.status !== 'incident') && (b.status === 'open' || b.status === 'incident')) return 1;
+        if ((a.status === 'active' || a.status === 'incident') && (b.status !== 'active' && b.status !== 'incident')) return -1;
+        if ((a.status !== 'active' && a.status !== 'incident') && (b.status === 'active' || b.status === 'incident')) return 1;
 
         // For active incidents, sort by SLA status and remaining time
-        if ((a.status === 'open' || a.status === 'incident') && (b.status === 'open' || b.status === 'incident')) {
+        if ((a.status === 'active' || a.status === 'incident') && (b.status === 'active' || b.status === 'incident')) {
           // Breached incidents first
           if (a.sla_status === 'breach' && b.sla_status !== 'breach') return -1;
           if (a.sla_status !== 'breach' && b.sla_status === 'breach') return 1;
@@ -328,7 +328,7 @@ export function IncidentManagement() {
   };
 
   const getCountdownColor = (liveCountdown: string, isNearBreach: boolean, status: string) => {
-    if (status !== 'open' && status !== 'incident') return 'text-muted-foreground';
+    if (status !== 'active' && status !== 'incident') return 'text-muted-foreground';
     if (liveCountdown === 'BREACHED') return 'text-red-600 font-bold';
     if (isNearBreach) return 'text-orange-600 font-semibold';
     return 'text-green-600';
@@ -454,7 +454,7 @@ export function IncidentManagement() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="open">Open</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="incident">Incident</SelectItem>
                 <SelectItem value="incident_closed">Incident-Closed</SelectItem>
                 <SelectItem value="false_positive_closed">False-Positive Closed</SelectItem>
@@ -511,7 +511,7 @@ export function IncidentManagement() {
               </TableHeader>
               <TableBody>
                 {paginatedIncidents.map((incident) => (
-                  <TableRow key={incident.incident_id} className={incident.isNearBreach && (incident.status === 'open' || incident.status === 'incident') ? 'bg-red-50' : ''}>
+                  <TableRow key={incident.incident_id} className={incident.isNearBreach && (incident.status === 'active' || incident.status === 'incident') ? 'bg-red-50' : ''}>
                     <TableCell className="font-mono text-sm">
                       {incident.incident_number}
                     </TableCell>

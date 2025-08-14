@@ -90,6 +90,11 @@ const App = () => (
                   <Index />
                 </ProtectedRoute>
               } />
+              <Route path="/templates" element={
+                <ProtectedRoute>
+                  <Index />
+                </ProtectedRoute>
+              } />
               
               <Route path="/incident/:incidentId" element={
                 <ProtectedRoute>

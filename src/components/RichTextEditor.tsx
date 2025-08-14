@@ -16,12 +16,19 @@ import { toast } from 'sonner';
 interface RichTextEditorProps {
   incident: Incident;
   isCustomerPortal?: boolean;
+  value?: string;
+  onChange?: (content: string) => void;
 }
 
-export default function RichTextEditor({ incident, isCustomerPortal = false }: RichTextEditorProps) {
+export default function RichTextEditor({ 
+  incident, 
+  isCustomerPortal = false,
+  value = '',
+  onChange
+}: RichTextEditorProps) {
   const editorRef = useRef<any>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
-  const [currentContent, setCurrentContent] = useState<string>('');
+  const [currentContent, setCurrentContent] = useState<string>(value);
   const [changeSummary, setChangeSummary] = useState<string>('');
   const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false);
 
@@ -31,18 +38,31 @@ export default function RichTextEditor({ incident, isCustomerPortal = false }: R
   const saveVersion = useSaveReportVersion();
   const restoreVersion = useRestoreReportVersion();
 
+  // Update local state when value prop changes
+  useEffect(() => {
+    if (value !== currentContent) {
+      setCurrentContent(value);
+      if (editorRef.current) {
+        editorRef.current.setContent(value);
+      }
+    }
+  }, [value]);
+
   // Load current version or default template on mount
   useEffect(() => {
     if (currentVersion) {
-      setCurrentContent(currentVersion.content);
+      const content = currentVersion.content;
+      setCurrentContent(content);
+      if (onChange) onChange(content);
       if (editorRef.current) {
-        editorRef.current.setContent(currentVersion.content);
+        editorRef.current.setContent(content);
       }
     } else if (templates?.length > 0) {
       const defaultTemplate = templates.find(t => t.is_default) || templates[0];
       const parsedContent = parseTemplateVariables(defaultTemplate.template_content, incident);
       setCurrentContent(parsedContent);
       setSelectedTemplateId(defaultTemplate.id);
+      if (onChange) onChange(parsedContent);
       if (editorRef.current) {
         editorRef.current.setContent(parsedContent);
       }
@@ -61,21 +81,21 @@ export default function RichTextEditor({ incident, isCustomerPortal = false }: R
 
   const handleSave = async () => {
     if (!editorRef.current) return;
-
+    
     const content = editorRef.current.getContent();
     setCurrentContent(content);
-
+    if (onChange) onChange(content);
+    
     try {
       await saveVersion.mutateAsync({
         incidentId: incident.incident_id,
         content,
-        templateId: selectedTemplateId || undefined,
-        changeSummary: changeSummary || 'Content updated',
-        createdBy: incident.analyst_name || 'analyst'
+        changeSummary: changeSummary || 'Updated report',
+        templateId: selectedTemplateId
       });
-
-      setChangeSummary('');
+      
       toast.success('Report saved successfully');
+      setChangeSummary('');
     } catch (error) {
       console.error('Error saving report:', error);
       toast.error('Failed to save report');
@@ -88,13 +108,15 @@ export default function RichTextEditor({ incident, isCustomerPortal = false }: R
         incidentId: incident.incident_id,
         versionId: version.id
       });
-
+      
+      setCurrentContent(version.content);
+      if (onChange) onChange(version.content);
       if (editorRef.current) {
         editorRef.current.setContent(version.content);
       }
-      setCurrentContent(version.content);
+      
+      toast.success('Version restored successfully');
       setIsVersionDialogOpen(false);
-      toast.success(`Restored to version ${version.version_number}`);
     } catch (error) {
       console.error('Error restoring version:', error);
       toast.error('Failed to restore version');

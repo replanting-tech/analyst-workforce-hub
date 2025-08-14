@@ -172,7 +172,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
     switch (status.toLowerCase()) {
       case 'resolved': return 'bg-green-100 text-green-800';
       case 'active': return 'bg-red-100 text-red-800';
-      case 'investigating': return 'bg-yellow-100 text-yellow-800';
+      case 'investigating': return 'bg-yellow-100 https://kilocode.ai/users/sign_up?source=vscodetext-yellow-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -570,7 +570,30 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
         </div>
 
         {/* Attack Analysis Section */}
-        
+        {/* Attack Chain Card */}
+        <div className="grid grid-cols-1 gap-6">
+          <Card className="border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                Attack Chain Stages
+              </CardTitle>
+              <p className="text-sm text-gray-500">Visual representation of the incident attack chain</p>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col items-center justify-center">
+                <img
+                  src="/public/placeholder.svg"
+                  alt="Attack Chain Diagram"
+                  className="w-full max-w-3xl h-auto object-contain rounded shadow"
+                  style={{ background: 'white' }}
+                />
+                <p className="mt-4 text-xs text-gray-600 text-center">
+                  Stages: Exposure, Intrusion Attempt, Compromise, Privilege Escalation & Propagation, Persistence, Impact
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

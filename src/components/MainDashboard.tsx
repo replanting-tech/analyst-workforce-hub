@@ -14,6 +14,7 @@ import { ReportPage } from './sections/ReportPage';
 import { DarkModeToggle } from './DarkModeToggle';
 import UserNav from './UserNav';
 import { useLocation } from 'react-router-dom';
+import TemplateManagementPage from '@/pages/TemplateManagement';
 
 export function MainDashboard() {
   const location = useLocation();
@@ -40,6 +41,8 @@ export function MainDashboard() {
         return <WorkloadManagement />;
       case 'reports':
         return <ReportPage />;
+      case 'templates':
+        return <TemplateManagementPage />;
       default:
         return <DashboardOverview />;
     }

@@ -21,15 +21,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import RichTextEditor from "./RichTextEditor";
 import IncidentDetailsExtraction from "./IncidentDetailsExtraction";
 import { StatusWorkflowDropdown } from "./StatusWorkflowDropdown";
-import EntitiesSection from "./incident/EntitiesSection";
+import EntitiesSection from "./incident/EntitiesSection"; 
 import TagsSection from "./incident/TagsSection";
 import CommentsSection from "./incident/CommentsSection";
 import AnalystEnrichmentSection from "./incident/AnalystEnrichmentSection";
-import { RequestChangeModal } from "./RequestChangeModal";
-import { useRequestChanges, useUpdateRequestChangeStatus } from "@/hooks/useRequestChanges";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/components/ui/use-toast"; 
 import { Skeleton } from "@/components/ui/skeleton";
 import { Check, X } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
+import { useRequestChanges, useUpdateRequestChangeStatus } from "@/hooks/useRequestChanges";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface IncidentDetailProps {
   incidentId: string;
@@ -40,6 +42,26 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
   const { data: requestChanges = [], isLoading: isLoadingRequestChanges } = useRequestChanges(incident?.incident_number);
   const updateRequestStatus = useUpdateRequestChangeStatus();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // State for email functionality
+  const [recommendationAnalysis, setRecommendationAnalysis] = useState('');
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  
+  // State for incident status and SLA
+  const [currentStatus, setCurrentStatus] = useState<string>('');
+  const [remainingTime, setRemainingTime] = useState<string>('');
+  
+  // State for request changes
+  const [selectedActionBy, setSelectedActionBy] = useState<string>('');
+  const [showActionBySelect, setShowActionBySelect] = useState<boolean>(false);
+  const [showConfirmation, setShowConfirmation] = useState<boolean>(false);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState<boolean>(false);
+  const [requestSubmitted, setRequestSubmitted] = useState<boolean>(false);
+  const [requestData, setRequestData] = useState<{id: string | number, status: string} | null>(null);
+
+
 
   const handleStatusUpdate = async (id: string, status: 'approved' | 'rejected') => {
     try {
@@ -56,23 +78,155 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
       });
     }
   };
-  const [remainingTime, setRemainingTime] = useState<string>("");
-  const [recommendationAnalysis, setRecommendationAnalysis] =
-    useState<string>("");
-  const [currentStatus, setCurrentStatus] = useState<string>("");
+  const handleRequestChangeClick = () => {
+    setShowActionBySelect(true);
+  };
 
-  async function sendEmail() {
+  const handleActionByChange = (actionBy: string) => {
+    setSelectedActionBy(actionBy);
+    setShowConfirmation(true);
+  };
+
+  const handleConfirmAction = async () => {
     if (!incident) return;
+    
+    try {
+      setTemplatesLoading(true);
+      
+      // Create the request change record
+      const { data: requestChange, error } = await supabase
+        .from('request_changes')
+        .insert({
+          incident_number: incident.incident_number,
+          analyst_id: incident.analyst_code,
+          status: 'waiting for approval',
+          action_required_by: selectedActionBy === 'soc_engineer' ? 'soc' : 'customer'
+        })
+        .select()
+        .single();
 
+      if (error) throw error;
+
+      // Store the request data in state and local storage (convert id to string if it's a number)
+      const requestData = { 
+        id: typeof requestChange.id === 'number' ? requestChange.id.toString() : requestChange.id, 
+        status: 'waiting for approval' 
+      };
+      setRequestData(requestData);
+      setRequestSubmitted(true);
+      
+      // Invalidate and refetch the request changes query
+      await queryClient.invalidateQueries({ 
+        queryKey: ['request-changes', incident.incident_number] 
+      });
+      
+      localStorage.setItem(
+        `request_${incident.incident_number}`, 
+        JSON.stringify(requestData)
+      );
+      
+      toast({
+        title: 'Success',
+        description: 'Request change has been submitted successfully',
+      });
+      
+    } catch (error) {
+      console.error('Error creating request change:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to submit request change. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setShowConfirmation(false);
+      setShowActionBySelect(false);
+      setSelectedActionBy('');
+      setTemplatesLoading(false);
+    }
+  };
+
+  const handleCancelAction = () => {
+    setShowConfirmation(false);
+    setShowActionBySelect(false);
+    setSelectedActionBy('');
+  };
+
+  // Check for existing request and fetch templates
+  useEffect(() => {
+    const checkExistingRequest = async () => {
+      if (!incident) return;
+      
+      try {
+        setTemplatesLoading(true);
+        
+        // Check local storage first
+        const storedRequest = localStorage.getItem(`request_${incident.incident_number}`);
+        if (storedRequest) {
+          const parsed = JSON.parse(storedRequest);
+          setRequestData(parsed);
+          setRequestSubmitted(true);
+          return;
+        }
+        
+        // If not in local storage, check the database
+        const { data: existingRequest, error } = await supabase
+          .from('request_changes')
+          .select('id, status')
+          .eq('incident_number', incident.incident_number)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+          
+        if (error) throw error;
+        
+        if (existingRequest) {
+          // Store in local storage for future reference
+          localStorage.setItem(
+            `request_${incident.incident_number}`, 
+            JSON.stringify({ id: existingRequest.id, status: existingRequest.status })
+          );
+          setRequestData(existingRequest);
+          setRequestSubmitted(true);
+        }
+        
+      } catch (error) {
+        console.error('Error checking existing request:', error);
+      } finally {
+        setTemplatesLoading(false);
+      }
+    };
+    
+    const fetchTemplates = async () => {
+      try {
+        // Replace this with your actual data fetching logic
+        // const response = await fetchTemplatesFromAPI();
+        // setTemplates(response.data);
+      } catch (error) {
+        console.error('Error fetching templates:', error);
+      }
+    };
+
+    checkExistingRequest();
+    fetchTemplates();
+  }, []);
+
+  const sendEmail = async () => {
+    if (!incident || !recommendationAnalysis) return;
+    
+    setIsSendingEmail(true);
+    
     const payload = {
       incidentId: incident.id,
       customerName: incident.customer_name,
-      customerEmail: "harrysunaryo03@gmail.com",
+      recipients: ["harry.sunaryo@compnet.co.id"],
       incidentNumber: incident.incident_number,
       priority: incident.priority,
       analystName: incident.analyst_name,
-      recommendation: recommendationAnalysis || undefined,
+      recommendation: recommendationAnalysis,
     };
+
+    console.log(payload);
+
 
     try {
       const response = await fetch(
@@ -91,17 +245,30 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
 
       if (!response.ok) {
         console.error("Failed to send email:", result.error);
-        alert("Failed to send email.");
+        toast({
+          title: "Error",
+          description: result.error || "Failed to send email",
+          variant: "destructive",
+        });
       } else {
-        console.log("Email sent successfully:", result);
+        toast({
+          title: "Success",
+          description: "Email sent successfully",
+        });
+        // Update notification status if needed
         await updateCustomerNotificationStatus();
-        alert("Email sent and notification status updated!");
       }
-    } catch (err) {
-      console.error("Unexpected error:", err);
-      alert("An unexpected error occurred.");
+    } catch (error) {
+      console.error("Error sending email:", error);
+      toast({
+        title: "Error",
+        description: "An error occurred while sending the email",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingEmail(false);
     }
-  }
+  };
 
   async function updateCustomerNotificationStatus() {
     if (!incident) return;
@@ -256,16 +423,30 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <RichTextEditor incident={incident} />
+            <RichTextEditor 
+              incident={incident} 
+              value={recommendationAnalysis}
+              onChange={setRecommendationAnalysis}
+            />
           </CardContent>
         </Card>
 
         {/* Tabs for different sections */}
-        <Tabs defaultValue="details" className="w-full">
+        <Tabs defaultValue="investigation" className="w-full">
           <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="investigation">Investigation Result</TabsTrigger>
             <TabsTrigger value="details">Incident Details</TabsTrigger>
             <TabsTrigger value="raw-logs">Raw Logs</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="investigation" className="space-y-6 mt-6">
+            <AnalystEnrichmentSection 
+              incidentId={incident.incident_id}
+              rawLogs={incident.raw_logs}
+              comments={incident.comments}
+              tags={incident.tags}
+            />
+          </TabsContent>
 
           <TabsContent value="details" className="space-y-6 mt-6">
             <IncidentDetailsExtraction 
@@ -274,10 +455,6 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
               priority={incident.priority}
             />
             <EntitiesSection entities={incident.entities} />
-            <AnalystEnrichmentSection 
-              incidentId={incident.incident_id}
-              rawLogs={incident.raw_logs}
-            />
           </TabsContent>
 
           <TabsContent value="raw-logs" className="mt-6">
@@ -313,23 +490,17 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
       <div className="col-span-3 space-y-6">
         {/* Basic Information */}
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <AlertTriangle className="w-5 h-5" />
-              Basic Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-6">
             <div className="grid grid-cols-1 gap-4">
-              <Button className={"w-full " + getPriorityColor(incident.priority)} variant="outline">
-                {incident.priority}
-              </Button>
 
               <StatusWorkflowDropdown 
                 currentStatus={incident.status}
                 incidentId={incident.incident_id}
                 onStatusChange={setCurrentStatus}
               />
+              <Button className={"w-full " + getPriorityColor(incident.priority)} variant="outline">
+                {incident.priority}
+              </Button>
             </div>
 
             <Button className="w-full" asChild>
@@ -367,20 +538,122 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                   Actions
                 </p>
                 <div className="grid grid-cols-1 gap-2">
-                  <Button
+                  <Button 
                     variant="outline"
                     size="sm"
-                    onClick={sendEmail}
-                    className="flex items-center justify-center"
-                  >
-                    <Send className="w-4 h-4 mr-2" />
+                onClick={sendEmail}
+                disabled={!recommendationAnalysis || isSendingEmail}
+                className="flex items-center gap-2"
+              >
+                {isSendingEmail ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
                     Send Notif to Customer
-                  </Button>
-                  <RequestChangeModal
+                  </>
+                )}
+              </Button>
+                  <div className="w-full">
+                    {requestChanges.length > 0 ? (
+                      <div className="w-full">
+                        <div className="px-4 py-2 text-sm text-center text-green-600 bg-green-100 rounded-md border border-green-200 flex items-center justify-center">
+                          <Check className="w-4 h-4 mr-2" />
+                          {requestData?.status === 'waiting for approval' 
+                            ? 'Waiting for Approval' 
+                            : requestData?.status === 'approved'
+                              ? 'Request Approved' 
+                              : 'Request Submitted'}
+                        </div>
+                        {requestData?.status === 'waiting for approval' && (
+                          <p className="mt-1 text-xs text-center text-muted-foreground">
+                            Action required by: {selectedActionBy === 'soc_engineer' ? 'SOC Engineer' : 'Customer'}
+                          </p>
+                        )}
+                      </div>
+                    ) : !showActionBySelect ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full flex items-center justify-center"
+                        onClick={handleRequestChangeClick}
+                      >
+                        <Send className="w-4 h-4 mr-2" />
+                        Request Change
+                      </Button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 flex items-center justify-center"
+                          disabled
+                        >
+                          <Send className="w-4 h-4 mr-2" />
+                          Request Change
+                        </Button>
+                        <Select
+                          value={selectedActionBy}
+                          onValueChange={handleActionByChange}
+                          disabled={templatesLoading}
+                        >
+                          <SelectTrigger className="w-64">
+                            <SelectValue placeholder="Action by" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="soc_engineer">
+                              <div className="flex items-center gap-2">
+                                Compnet SOC Engineer
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="customer">
+                              <div className="flex items-center gap-2">
+                                Customer
+                              </div>
+                            </SelectItem>
+                            {templates?.map((template) => (
+                              <SelectItem key={template.id} value={template.id}>
+                                <div className="flex items-center gap-2">
+                                  {template.name}
+                                  {template.is_default && <Badge variant="secondary" className="text-xs">Default</Badge>}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <Dialog open={showConfirmation} onOpenChange={setShowConfirmation}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Confirm Action</DialogTitle>
+                        <DialogDescription>
+                          Are you sure you want to request a change to be handled by {selectedActionBy === 'soc_engineer' ? 'Compnet SOC Engineer' : selectedActionBy === 'customer' ? 'Customer' : 'selected template'}?
+                        </DialogDescription>
+                      </DialogHeader>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={handleCancelAction}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleConfirmAction}>
+                          Confirm
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                  {/* <RequestChangeModal
                     incidentId={incident.incident_id}
                     incidentNumber={incident.incident_number}
                     analystCode={incident.analyst_code}
-                  />
+                  /> */}
                 </div>
               </div>
             </div>
@@ -473,7 +746,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
 
 
           {/* Required Actions */}
-          <Card>
+         {requestChanges.length > 0 && <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Clock className="w-5 h-5" />
@@ -516,7 +789,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                 </p>
               )}
             </CardContent>
-          </Card>
+          </Card>}
 
 
         {/* Tags */}

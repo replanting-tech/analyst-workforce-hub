@@ -40,8 +40,8 @@ export const useIncidents = () => {
       const { data, error } = await supabase
         .from('v_incident_sla_details')
         .select('*')
-        .neq('analyst_code', 'AUT')
-        .order('created_at', { ascending: false });
+        // .neq('analyst_code', 'AUT')
+        .order('incident_number', { ascending: false });
 
       if (error) {
         console.error('Error fetching incidents:', error);

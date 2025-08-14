@@ -6,6 +6,7 @@ export interface AnalystEnrichment {
   threatIndicatorIP?: string;
   threatIndicatorHash?: string;
   threatIndicatorDomain?: string;
+  threatName: string;
   threatCategory?: string;
   description?: string;
   technicalRecommendation?: string;

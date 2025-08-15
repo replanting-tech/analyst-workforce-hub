@@ -17,6 +17,8 @@ const Auth = () => {
   const [loginMode, setLoginMode] = useState(false);
   const navigate = useNavigate();
 
+  const ENV = 'production';
+
   // Development credentials
   const DEV_CREDENTIALS = {
     email: 'admin@incident.dev',
@@ -129,15 +131,17 @@ const Auth = () => {
           {!emailSent ? (
             <div className="space-y-4">
               {/* Development Login */}
-              <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                <h3 className="font-medium text-yellow-800 dark:text-yellow-200 mb-2">Development Access</h3>
-                <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-3">
-                  Quick access for development and testing
-                </p>
-                <Button onClick={handleDevLogin} variant="outline" className="w-full">
-                  Login as Admin (Development)
-                </Button>
-              </div>
+              {ENV === 'development' && (
+                <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                  <h3 className="font-medium text-yellow-800 dark:text-yellow-200 mb-2">Development Access</h3>
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-3">
+                    Quick access for development and testing
+                  </p>
+                  <Button onClick={handleDevLogin} variant="outline" className="w-full">
+                    Login as Admin (Development)
+                  </Button>
+                </div>
+              )}
 
               {/* Toggle between login modes */}
               <div className="flex gap-2">
@@ -233,6 +237,13 @@ const Auth = () => {
                   </Button>
                 </form>
               )}
+              {/*add button login as customer*/}
+              <Button 
+                onClick={() => navigate('/portal/customer')}
+                className="w-full"
+              >
+                Login as Customer
+              </Button> 
             </div>
           ) : (
             <div className="text-center space-y-4">

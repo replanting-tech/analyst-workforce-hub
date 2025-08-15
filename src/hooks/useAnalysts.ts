@@ -15,13 +15,30 @@ export interface Analyst {
   isRegisteredUser?: boolean; // Add this new field
 }
 
-export const useAnalysts = () => {
+interface UseAnalystsOptions {
+  userRole?: string | null;
+  analystCode?: string | null;
+  availability?: string | null;
+}
+
+export const useAnalysts = ({ userRole, analystCode, availability = null }: UseAnalystsOptions = {}) => {
   return useQuery({
-    queryKey: ['analysts'],
+    queryKey: ['analysts', { userRole, analystCode }],
     queryFn: async () => {
-      const { data: analystsData, error } = await supabase
+      let query = supabase
         .from('v_analyst_workload_summary')
-        .select('*')
+        .select('*');
+      
+      // For L1 users, only show their own profile
+      if (userRole === 'L1' && analystCode) {
+        query = query.eq('code', analystCode);
+      }
+      if (availability) {
+        query = query.eq('availability', availability);
+      }
+      // For L2 and L3, show all analysts (no additional filtering needed)
+      
+      const { data: analystsData, error } = await query
         .order('current_active_incidents', { ascending: false });
 
       if (error) {

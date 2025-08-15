@@ -22,12 +22,15 @@ import {
 import { FileText, Search, Plus, Eye, Edit, ExternalLink, Hash, RefreshCw } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRequestChanges } from '@/hooks/useRequestChanges';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function RequestChanges() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+    const { role: userRole, analyst } = useAuth();
+    const analystCode = analyst?.code || null;
 
-  const { data: requestChanges = [], isLoading, error, refetch } = useRequestChanges();
+  const { data: requestChanges = [], isLoading, error, refetch } = useRequestChanges(null, userRole, analystCode);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -67,11 +70,10 @@ export function RequestChanges() {
   });
 
   // Calculate stats
-  const activeRequests = requestChanges.filter(r => r.status === 'active').length;
-  const completedToday = requestChanges.filter(r => 
-    r.status === 'completed' && 
-    new Date(r.updated_at).toDateString() === new Date().toDateString()
-  ).length;
+  const activeRequests = requestChanges.filter(r => r.status === 'waiting for approval').length;
+  const completedRequests = requestChanges.filter(r => r.status === 'approved').length;
+  const approvedRequests = requestChanges.filter(r => r.status === 'approved').length;
+  const rejectedRequests = requestChanges.filter(r => r.status === 'rejected').length;
   const totalIndicators = requestChanges.reduce((sum, request) => sum + request.indicators.length, 0);
   const pendingIndicators = requestChanges.reduce((sum, request) => 
     sum + request.indicators.filter(i => i.status === 'pending').length, 0
@@ -143,8 +145,8 @@ export function RequestChanges() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Pending Indicators</p>
-                <p className="text-2xl font-bold text-orange-600">{pendingIndicators}</p>
+                <p className="text-sm font-medium text-gray-600">Rejected Requests</p>
+                <p className="text-2xl font-bold text-orange-600">{rejectedRequests}</p>
               </div>
               <Hash className="w-8 h-8 text-orange-600" />
             </div>
@@ -155,8 +157,8 @@ export function RequestChanges() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Completed Today</p>
-                <p className="text-2xl font-bold text-green-600">{completedToday}</p>
+                <p className="text-sm font-medium text-gray-600">Approved Requests</p>
+                <p className="text-2xl font-bold text-green-600">{approvedRequests}</p>
               </div>
               <FileText className="w-8 h-8 text-green-600" />
             </div>
@@ -167,8 +169,8 @@ export function RequestChanges() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Indicators</p>
-                <p className="text-2xl font-bold text-purple-600">{totalIndicators}</p>
+                <p className="text-sm font-medium text-gray-600">Completed Requests</p>
+                <p className="text-2xl font-bold text-purple-600">{completedRequests}</p>
               </div>
               <Hash className="w-8 h-8 text-purple-600" />
             </div>

@@ -33,15 +33,29 @@ export interface Incident {
   comments?: string[];
 }
 
-export const useIncidents = () => {
+interface UseIncidentsOptions {
+  userRole?: string | null;
+  analystCode?: string | null;
+}
+
+export const useIncidents = ({ userRole, analystCode }: UseIncidentsOptions = {}) => {
   return useQuery({
-    queryKey: ['incidents'],
+    queryKey: ['incidents', { userRole, analystCode }],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('v_incident_sla_details')
-        .select('*')
-        // .neq('analyst_code', 'AUT')
-        .order('incident_number', { ascending: false });
+        .select('*');
+      
+      // For L1 users, only show their assigned incidents
+      if (userRole === 'L1' && analystCode) {
+        query = query.eq('analyst_code', analystCode);
+      }
+      
+      // For L2 and L3, show all incidents (no additional filtering needed)
+      // L1 without analyst code will see no incidents
+      
+      const { data, error } = await query
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching incidents:', error);

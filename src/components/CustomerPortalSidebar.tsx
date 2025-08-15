@@ -22,6 +22,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { useAuth } from '@/contexts/AuthContext';
 
 const menuItems = [
   {
@@ -67,6 +68,7 @@ export function CustomerPortalSidebar({
   onLogout,
   user,
 }: CustomerPortalSidebarProps) {
+  const { analyst } = useAuth();
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
 
@@ -87,7 +89,9 @@ export function CustomerPortalSidebar({
                 Customer Portal
               </h2>
               <p className="text-xs text-muted-foreground">
-                Security Dashboard
+                {analyst?.name || 'PT. Customer Tester'}
+              </p>
+              <p className="text-xs text-gray-400 -mt-3">{analyst?.email}
               </p>
             </div>
           </div>

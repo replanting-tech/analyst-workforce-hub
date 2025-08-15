@@ -24,13 +24,19 @@ import { useAnalysts } from '@/hooks/useAnalysts';
 import { AddAnalystForm } from '@/components/forms/AddAnalystForm';
 import { EditAnalystForm } from '@/components/forms/EditAnalystForm';
 import type { Analyst } from '@/hooks/useAnalysts';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function AnalystManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddAnalystDialogOpen, setIsAddAnalystDialogOpen] = useState(false);
   const [editingAnalyst, setEditingAnalyst] = useState<Analyst | null>(null);
   
-  const { data: analysts = [], isLoading, refetch } = useAnalysts();
+  const { role: userRole, analyst } = useAuth();
+  
+  const { data: analysts = [], isLoading, refetch } = useAnalysts({
+    userRole,
+    analystCode: analyst?.code || null
+  });
 
   const filteredAnalysts = analysts.filter(analyst =>
     analyst.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -89,13 +95,15 @@ export function AnalystManagement() {
           <h2 className="text-2xl font-bold text-gray-900">Analyst Management</h2>
           <p className="text-gray-600">Manage analyst accounts and workload distribution</p>
         </div>
-        <Button 
-          className="bg-blue-600 hover:bg-blue-700"
-          onClick={() => setIsAddAnalystDialogOpen(true)}
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Analyst
-        </Button>
+        {(userRole === 'L2' || userRole === 'L3') && (
+          <Button 
+            className="bg-blue-600 hover:bg-blue-700"
+            onClick={() => setIsAddAnalystDialogOpen(true)}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Analyst
+          </Button>
+        )}
       </div>
 
       {/* Quick Stats */}
@@ -184,7 +192,7 @@ export function AnalystManagement() {
               </TableHeader>
               <TableBody>
                 {filteredAnalysts.map((analyst) => (
-                  <TableRow key={analyst.id}>
+                  <TableRow key={analyst.code}>
                     <TableCell>
                       <div className="flex items-center space-x-3">
                         <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
@@ -328,7 +336,7 @@ export function AnalystManagement() {
                 .sort((a, b) => b.today_closed_incidents - a.today_closed_incidents)
                 .slice(0, 5)
                 .map((analyst, index) => (
-                <div key={analyst.id} className="flex items-center justify-between">
+                <div key={analyst.code} className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
                       <span className="text-xs font-medium">{index + 1}</span>

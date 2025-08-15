@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import ReactQuill from 'react-quill';
+import { Editor } from '@tinymce/tinymce-react';
 import 'react-quill/dist/quill.snow.css';
 import RichTextEditor from '@/components/RichTextEditor';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { Shield, Save, Edit3 } from 'lucide-react';
 import { useAnalystEnrichment, AnalystEnrichment } from '@/hooks/useAnalystEnrichment';
 import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useStructuredReport } from '@/hooks/useStructuredReport';
 
 interface AnalystEnrichmentSectionProps {
   incidentId: string;
@@ -36,6 +39,10 @@ const AnalystEnrichmentSection: React.FC<AnalystEnrichmentSectionProps> = ({
     description: '',
     technicalRecommendation: 'Please refer to security playbook for remediation steps'
   });
+  const queryClient = useQueryClient();
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const { updateEnrichment, isLoading } = useAnalystEnrichment(incidentId);
+  const { fields: reportFields } = useStructuredReport(incidentId);
 
   // Extract #description and #recommendation from comments
   useEffect(() => {
@@ -63,9 +70,10 @@ const AnalystEnrichmentSection: React.FC<AnalystEnrichmentSectionProps> = ({
 
       // Function to extract HTML content for a given keyword
       const extractHtmlContent = (html: string, keyword: string) => {
-        const regex = new RegExp(`(<p>)?#${keyword}\s*:?\s*(.*?)(?=<p>#|$)`, 'is');
-        const match = html.match(regex);
-        return match ? match[2].trim() : '';
+        const regex = new RegExp(`(<p>)?#${keyword}\\s*:?\\s*(.*?)(?=<p>#|$)`, 'gis');
+        const matches = Array.from(html.matchAll(regex));
+        const last = matches.length ? matches[matches.length - 1] : null;
+        return last ? (last[2]?.trim() ?? '') : '';
       };
 
       // Function to clean HTML for entity extraction
@@ -123,6 +131,24 @@ const AnalystEnrichmentSection: React.FC<AnalystEnrichmentSectionProps> = ({
     }
   }, [comments]);
 
+  // Sync from Structured Report for Description and Recommendation
+  useEffect(() => {
+    if (!reportFields || reportFields.length === 0) return;
+    const descriptionField = reportFields.find(f => f.id === 'description');
+    const recommendationField = reportFields.find(f => f.id === 'technical_recommendation');
+
+    setEnrichmentData(prev => {
+      const next = { ...prev };
+      if (descriptionField && descriptionField.value !== prev.description) {
+        next.description = descriptionField.value || '';
+      }
+      if (recommendationField && recommendationField.value !== prev.technicalRecommendation) {
+        next.technicalRecommendation = recommendationField.value || '';
+      }
+      return next;
+    });
+  }, [reportFields]);
+
   useEffect(() => {
     if (tags && Array.isArray(tags)) {
       let threatCategory, threatName;
@@ -145,7 +171,147 @@ const AnalystEnrichmentSection: React.FC<AnalystEnrichmentSectionProps> = ({
     }
   }, [tags]); 
   
-  const { updateEnrichment, isLoading } = useAnalystEnrichment(incidentId);
+  // Autosave enrichment data with debounce
+  useEffect(() => {
+    if (!isEditing) return;
+    setAutoSaveStatus('saving');
+    const timeoutId = setTimeout(async () => {
+      try {
+        await updateEnrichment(enrichmentData);
+        setAutoSaveStatus('saved');
+      } catch (e) {
+        setAutoSaveStatus('error');
+      }
+    }, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [enrichmentData, isEditing]);
+
+  // Keep Ticket Name (incident title) synced with Threat Name
+  useEffect(() => {
+    const newTitle = enrichmentData.threatName?.trim();
+    if (!newTitle) return;
+    const timeoutId = setTimeout(async () => {
+      try {
+        await supabase
+          .from('incidents')
+          .update({ title: newTitle, updated_at: new Date().toISOString() })
+          .eq('incident_id', incidentId);
+        queryClient.invalidateQueries({ queryKey: ['incidentReport', incidentId] });
+        queryClient.invalidateQueries({ queryKey: ['incident', incidentId] });
+      } catch (e) {
+        // no-op for now
+      }
+    }, 800);
+    return () => clearTimeout(timeoutId);
+  }, [enrichmentData.threatName, incidentId, queryClient]);
+  
+  // Sync Threat Name into incidents.tags array (string[] of JSON strings)
+  useEffect(() => {
+    const threatName = enrichmentData.threatName?.trim();
+    if (!threatName) return;
+    const timeoutId = setTimeout(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('incidents')
+          .select('tags')
+          .eq('incident_id', incidentId)
+          .single();
+        if (error) throw error;
+
+        const currentTagsRaw: any = data?.tags ?? [];
+        const currentTags: string[] = Array.isArray(currentTagsRaw)
+          ? currentTagsRaw.filter((t: any) => typeof t === 'string')
+          : [];
+
+        const newTagString = JSON.stringify({ labelName: threatName });
+        let replaced = false;
+        const updatedTags = currentTags.map((t) => {
+          try {
+            const obj = JSON.parse(t);
+            if (obj && typeof obj.labelName === 'string' && obj.labelName.includes('*')) {
+              replaced = true;
+              return newTagString;
+            }
+          } catch {}
+          return t;
+        });
+
+        // If we didn't replace an existing threat-name tag, append new one.
+        if (!replaced) {
+          // Avoid duplicate same labelName entries
+          const hasSame = updatedTags.some((t) => {
+            try { const o = JSON.parse(t); return o?.labelName === `${threatName}*`; } catch { return false; }
+          });
+          if (!hasSame) updatedTags.push(newTagString);
+        }
+
+        await supabase
+          .from('incidents')
+          .update({ tags: updatedTags, updated_at: new Date().toISOString() })
+          .eq('incident_id', incidentId);
+
+        queryClient.invalidateQueries({ queryKey: ['incident', incidentId] });
+      } catch (e) {
+        // swallow for now
+      }
+    }, 800);
+    return () => clearTimeout(timeoutId);
+  }, [enrichmentData.threatName, incidentId, queryClient]);
+  
+  // Sync Threat Category into incidents.tags array (string[] of JSON strings)
+  useEffect(() => {
+    const threatCategory = enrichmentData.threatCategory?.trim();
+    if (!threatCategory) return;
+    const timeoutId = setTimeout(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('incidents')
+          .select('tags')
+          .eq('incident_id', incidentId)
+          .single();
+        if (error) throw error;
+ 
+        const currentTagsRaw: any = data?.tags ?? [];
+        const currentTags: string[] = Array.isArray(currentTagsRaw)
+          ? currentTagsRaw.filter((t: any) => typeof t === 'string')
+          : [];
+ 
+        const newTagString = JSON.stringify({ labelName: threatCategory });
+        let replaced = false;
+        const updatedTags = currentTags.map((t) => {
+          try {
+            const obj = JSON.parse(t);
+            // Only replace if it does NOT have an asterisk (i.e., it's a threat category)
+            if (obj && typeof obj.labelName === 'string' && !obj.labelName.includes('*')) {
+              replaced = true;
+              return newTagString;
+            }
+          } catch {}
+          return t;
+        });
+ 
+        // If we didn't replace an existing threat-category tag, append new one.
+        if (!replaced) {
+          // Avoid duplicate same labelName entries and ensure it doesn't have an asterisk
+          const hasSame = updatedTags.some((t) => {
+            try { const o = JSON.parse(t); return o?.labelName === threatCategory && !o.labelName.includes('*'); } catch { return false; }
+          });
+          if (!hasSame) updatedTags.push(newTagString);
+        }
+ 
+        await supabase
+          .from('incidents')
+          .update({ tags: updatedTags, updated_at: new Date().toISOString() })
+          .eq('incident_id', incidentId);
+ 
+        queryClient.invalidateQueries({ queryKey: ['incident', incidentId] });
+      } catch (e) {
+        // swallow for now
+      }
+    }, 800);
+    return () => clearTimeout(timeoutId);
+  }, [enrichmentData.threatCategory, incidentId, queryClient]);
+  
   const { toast } = useToast();
 
   const handleSave = async () => {
@@ -181,36 +347,11 @@ const AnalystEnrichmentSection: React.FC<AnalystEnrichmentSectionProps> = ({
             Investigation Result
           </CardTitle>
           <div className="flex items-center gap-2">
-            {!isEditing ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsEditing(true)}
-                className="flex items-center gap-2"
-              >
-                <Edit3 className="w-4 h-4" />
-                Edit
-              </Button>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsEditing(false)}
-                  disabled={isLoading}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={handleSave}
-                  disabled={isLoading}
-                  className="flex items-center gap-2"
-                >
-                  <Save className="w-4 h-4" />
-                  {isLoading ? 'Saving...' : 'Save'}
-                </Button>
-              </>
+            {autoSaveStatus === 'saving' && (
+              <Badge variant="secondary" className="text-xs">Saving...</Badge>
+            )}
+            {autoSaveStatus === 'saved' && (
+              <Badge variant="outline" className="text-xs">Saved</Badge>
             )}
           </div>
         </div>
@@ -219,9 +360,6 @@ const AnalystEnrichmentSection: React.FC<AnalystEnrichmentSectionProps> = ({
         <div className="grid grid-cols-1 gap-6">
           {/* Left Column - Threat Indicators */}
           <div className="space-y-4">
-            <h3 className="font-semibold text-sm text-muted-foreground mb-3">
-              Threat Indicators
-            </h3>
             
             <div className="space-y-3">
               <div>
@@ -265,15 +403,20 @@ const AnalystEnrichmentSection: React.FC<AnalystEnrichmentSectionProps> = ({
                   Threat Indicator - IP
                 </Label>
                 {isEditing ? (
-                  <ReactQuill
+                  <Editor
+                    apiKey='9pxbmembo1uetj3qto7w4t0ce6vi14e321zvnvyip544v0yi'
                     value={enrichmentData.threatIndicatorIP || ''}
-                    onChange={(val: string) => handleInputChange('threatIndicatorIP', val)}
-                    className="min-h-[120px] text-xs"
-                    placeholder="Enter IP address"
+                    onEditorChange={(val: string) => handleInputChange('threatIndicatorIP', val)}
+                    init={{
+                      height: 120,
+                      menubar: false,
+                      statusbar: false,
+                      toolbar: 'undo redo | bold italic underline | bullist numlist | removeformat',
+                    }}
                   />
                 ) : (
                   <div className="p-2 bg-muted rounded text-xs font-mono">
-                    {enrichmentData.threatIndicatorIP || 'N/A'}
+                    <div dangerouslySetInnerHTML={{ __html: enrichmentData.threatIndicatorIP || 'N/A' }} />
                   </div>
                 )}
               </div>
@@ -283,15 +426,20 @@ const AnalystEnrichmentSection: React.FC<AnalystEnrichmentSectionProps> = ({
                   Threat Indicator - Hash
                 </Label>
                 {isEditing ? (
-                  <ReactQuill
+                  <Editor
+                    apiKey='9pxbmembo1uetj3qto7w4t0ce6vi14e321zvnvyip544v0yi'
                     value={enrichmentData.threatIndicatorHash || ''}
-                    onChange={(val: string) => handleInputChange('threatIndicatorHash', val)}
-                    className="min-h-[120px] text-xs"
-                    placeholder="Enter file hash"
+                    onEditorChange={(val: string) => handleInputChange('threatIndicatorHash', val)}
+                    init={{
+                      height: 120,
+                      menubar: false,
+                      statusbar: false,
+                      toolbar: 'undo redo | bold italic underline | bullist numlist | removeformat',
+                    }}
                   />
                 ) : (
                   <div className="p-2 bg-muted rounded text-xs font-mono truncate" title={enrichmentData.threatIndicatorHash}>
-                    {enrichmentData.threatIndicatorHash || 'N/A'}
+                    <div dangerouslySetInnerHTML={{ __html: enrichmentData.threatIndicatorHash || 'N/A' }} />
                   </div>
                 )}
               </div>
@@ -301,38 +449,41 @@ const AnalystEnrichmentSection: React.FC<AnalystEnrichmentSectionProps> = ({
                   Threat Indicator - Domain
                 </Label>
                 {isEditing ? (
-                  <ReactQuill
+                  <Editor
+                    apiKey='9pxbmembo1uetj3qto7w4t0ce6vi14e321zvnvyip544v0yi'
                     value={enrichmentData.threatIndicatorDomain || ''}
-                    onChange={(val: string) => handleInputChange('threatIndicatorDomain', val)}
-                    className="min-h-[120px] text-xs"
-                    placeholder="Enter domain"
+                    onEditorChange={(val: string) => handleInputChange('threatIndicatorDomain', val)}
+                    init={{
+                      height: 120,
+                      menubar: false,
+                      statusbar: false,
+                      toolbar: 'undo redo | bold italic underline | bullist numlist | removeformat',
+                    }}
                   />
                 ) : (
                   <div className="p-2 bg-muted rounded text-xs">
-                    {enrichmentData.threatIndicatorDomain || 'N/A'}
+                    <div dangerouslySetInnerHTML={{ __html: enrichmentData.threatIndicatorDomain || 'N/A' }} />
                   </div>
                 )}
               </div>
 
             </div>
-          </div>
-
-          {/* Right Column - Analysis & Recommendations */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-sm text-muted-foreground mb-3">
-              Analysis & Recommendations
-            </h3>
             <div className="space-y-3">
               <div>
                 <Label htmlFor="description" className="text-xs font-medium">
                   Description
                 </Label>
                 {isEditing ? (
-                  <ReactQuill
+                  <Editor
+                    apiKey='9pxbmembo1uetj3qto7w4t0ce6vi14e321zvnvyip544v0yi'
                     value={enrichmentData.description || ''}
-                    onChange={(val: string) => handleInputChange('description', val)}
-                    className="min-h-[80px] text-xs"
-                    placeholder="Enter threat description"
+                    onEditorChange={(val: string) => handleInputChange('description', val)}
+                    init={{
+                      height: 200,
+                      menubar: false,
+                      statusbar: false,
+                      toolbar: 'undo redo | blocks | bold italic underline | alignleft aligncenter alignright | bullist numlist | removeformat',
+                    }}
                   />
                 ) : (
                   <div className="p-2 bg-muted rounded text-xs min-h-[80px]">
@@ -345,11 +496,16 @@ const AnalystEnrichmentSection: React.FC<AnalystEnrichmentSectionProps> = ({
                    Recommendation
                 </Label>
                 {isEditing ? (
-                  <ReactQuill
+                  <Editor
+                    apiKey='9pxbmembo1uetj3qto7w4t0ce6vi14e321zvnvyip544v0yi'
                     value={enrichmentData.technicalRecommendation || ''}
-                    onChange={(val: string) => handleInputChange('technicalRecommendation', val)}
-                    className="min-h-[120px] text-xs"
-                    placeholder="Enter technical recommendation for customer"
+                    onEditorChange={(val: string) => handleInputChange('technicalRecommendation', val)}
+                    init={{
+                      height: 200,
+                      menubar: false,
+                      statusbar: false,
+                      toolbar: 'undo redo | blocks | bold italic underline | alignleft aligncenter alignright | bullist numlist | removeformat',
+                    }}
                   />
                 ) : (
                   <div className="p-2 bg-muted rounded text-xs min-h-[120px]">

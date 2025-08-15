@@ -1,6 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, Area, AreaChart
+  PieChart, Pie, Cell, LineChart, Line, Area, AreaChart, Tooltip
 } from 'recharts';
+import AttackChain from './AttackChain';
 import { 
   Shield, AlertTriangle, CheckCircle, Clock, TrendingUp, 
   Users, Activity, FileText, LogOut, Download,
@@ -23,6 +24,45 @@ import { useSLADashboard } from '@/hooks/useSLADashboard';
 interface CustomerDashboardProps {
   onLogout: () => void;
 }
+
+const topAttackCategoryData = [
+  { name: '(Blank)', value: 1222 },
+  { name: 'Reconnaissance', value: 47 },
+  { name: 'Business Process', value: 44 },
+  { name: 'C2', value: 36 },
+  { name: 'Host Exploitation', value: 2 },
+];
+
+const topIpAttackerData = [
+  { name: 'Critical', value: 1100 },
+  { name: 'High', value: 400 },
+  { name: 'Medium', value: 100 },
+  { name: 'Low', value: 50 },
+  { name: 'Informational', value: 25 },
+];
+
+const topSuspectHostData = [
+  { name: 'GWBUCPC190...', value: 169 },
+  { name: 'GWOBUCDLS25...', value: 89 },
+  { name: 'GWOBUCDL325...', value: 28 },
+  { name: 'GWOBUCLV220...', value: 25 },
+  { name: 'GWOBUCDL325...', value: 21 },
+  { name: 'GWOBUCLTB23...', value: 14 },
+  { name: 'GWOBUCDL325...', value: 12 },
+  { name: 'GWOBUCLV220...', value: 10 },
+  { name: 'GWOBUCN824...', value: 10 },
+  { name: 'GWOBUCLV230...', value: 7 },
+  { name: 'GWOBUCLV220...', value: 6 },
+  { name: 'GWOBUCNB25...', value: 6 },
+  { name: 'GWOBUCLV220...', value: 5 },
+];
+
+const criticalAssetsData = [
+  { severity: 'Critical', ip: '10.1.5.12', asset: 'DC-SERVER-01', count: 45 },
+  { severity: 'Critical', ip: '192.168.3.22', asset: 'FINANCE-DB', count: 32 },
+  { severity: 'High', ip: '172.16.10.5', asset: 'HR-PORTAL', count: 21 },
+  { severity: 'High', ip: '10.2.15.8', asset: 'DEV-SERVER-03', count: 18 },
+];
 
 export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('7d');
@@ -540,10 +580,93 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
           </Card>
         </div>
 
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Threat Trend Chart */}
+        {/* Top Attack Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
           <Card>
+            <CardHeader>
+              <CardTitle>Top Attack Category</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={topAttackCategoryData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" />
+                  <YAxis dataKey="name" type="category" width={120} />
+                  <Tooltip />
+                  <Bar dataKey="value" fill="#007bff" barSize={15} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Top IP Attacker</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={topIpAttackerData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" />
+                  <YAxis dataKey="name" type="category" width={100} />
+                  <Tooltip />
+                  <Bar dataKey="value" fill="#007bff" barSize={15} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Top Suspect Host</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={topSuspectHostData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" />
+                  <YAxis dataKey="name" type="category" width={120} />
+                  <Tooltip />
+                  <Bar dataKey="value" fill="#007bff" barSize={15} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>List of Critical Asset Affected</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Severity</TableHead>
+                    <TableHead>IP Address</TableHead>
+                    <TableHead>Asset</TableHead>
+                    <TableHead className="text-right">Count</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {criticalAssetsData.map((asset) => (
+                    <TableRow key={asset.ip}>
+                      <TableCell>{asset.severity}</TableCell>
+                      <TableCell>{asset.ip}</TableCell>
+                      <TableCell>{asset.asset}</TableCell>
+                      <TableCell className="text-right">{asset.count}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+
+
+        {/* Charts Section */}
+        <div className="grid grid-cols-3 lg:grid-cols-3 gap-6">
+          {/* Threat Trend Chart */}
+          <Card className="col-span-1">
             <CardHeader>
               <CardTitle>Threat SLA Performance</CardTitle>
             </CardHeader>
@@ -566,33 +689,19 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ onLogout }
               </ChartContainer>
             </CardContent>
           </Card>
-
-        </div>
-
-        {/* Attack Analysis Section */}
-        {/* Attack Chain Card */}
-        <div className="grid grid-cols-1 gap-6">
-          <Card className="border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-                Attack Chain Stages
-              </CardTitle>
-              <p className="text-sm text-gray-500">Visual representation of the incident attack chain</p>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col items-center justify-center">
-                <img
-                  src="/public/placeholder.svg"
-                  alt="Attack Chain Diagram"
-                  className="w-full max-w-3xl h-auto object-contain rounded shadow"
-                  style={{ background: 'white' }}
-                />
-                <p className="mt-4 text-xs text-gray-600 text-center">
-                  Stages: Exposure, Intrusion Attempt, Compromise, Privilege Escalation & Propagation, Persistence, Impact
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Attack Analysis Section */}
+            {/* Attack Chain Card */}
+            <Card className="col-span-2">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                    Attack Chain Stages
+                  </CardTitle>
+                  <p className="text-sm text-gray-500">Visual representation of the incident attack chain</p>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <AttackChain />
+                </CardContent>
+              </Card>
         </div>
       </div>
     </div>

@@ -15,7 +15,7 @@ import { LogOut, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
-const UserNav = () => {
+export const UserNav = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   

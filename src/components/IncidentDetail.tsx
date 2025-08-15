@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -18,7 +18,8 @@ import {
   Send,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import RichTextEditor from "./RichTextEditor";
+import { StructuredReport } from "./StructuredReport";
+import { useStructuredReport } from "@/hooks/useStructuredReport";
 import IncidentDetailsExtraction from "./IncidentDetailsExtraction";
 import { StatusWorkflowDropdown } from "./StatusWorkflowDropdown";
 import EntitiesSection from "./incident/EntitiesSection"; 
@@ -47,6 +48,10 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
   // State for email functionality
   const [recommendationAnalysis, setRecommendationAnalysis] = useState('');
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+
+  const handleAnalysisUpdate = useCallback((analysis: string) => {
+    setRecommendationAnalysis(analysis);
+  }, []);
   
   // State for incident status and SLA
   const [currentStatus, setCurrentStatus] = useState<string>('');
@@ -218,7 +223,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
     const payload = {
       incidentId: incident.id,
       customerName: incident.customer_name,
-      recipients: ["harry.sunaryo@compnet.co.id"],
+      recipients: ["harry.sunaryo@compnet.co.id", "gilang.ramadhan@compnet.co.id"],
       incidentNumber: incident.incident_number,
       priority: incident.priority,
       analystName: incident.analyst_name,
@@ -423,10 +428,9 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <RichTextEditor 
-              incident={incident} 
-              value={recommendationAnalysis}
-              onChange={setRecommendationAnalysis}
+            <StructuredReport 
+              incidentId={incident.incident_id}
+              onAnalysisUpdate={handleAnalysisUpdate}
             />
           </CardContent>
         </Card>
@@ -436,6 +440,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="investigation">Investigation Result</TabsTrigger>
             <TabsTrigger value="details">Incident Details</TabsTrigger>
+            <TabsTrigger value="entities">Entities</TabsTrigger>
             <TabsTrigger value="raw-logs">Raw Logs</TabsTrigger>
           </TabsList>
 
@@ -454,7 +459,10 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
               creationTime={incident.creation_time}
               priority={incident.priority}
             />
-            <EntitiesSection entities={incident.entities} />
+          </TabsContent>
+
+          <TabsContent value="entities" className="space-y-6 mt-6"> 
+          <EntitiesSection entities={incident.entities} />
           </TabsContent>
 
           <TabsContent value="raw-logs" className="mt-6">
@@ -585,7 +593,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                         onClick={handleRequestChangeClick}
                       >
                         <Send className="w-4 h-4 mr-2" />
-                        Request Change
+                        Need Change
                       </Button>
                     ) : (
                       <div className="flex items-center gap-2">
@@ -596,7 +604,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                           disabled
                         >
                           <Send className="w-4 h-4 mr-2" />
-                          Request Change
+                          Need Change
                         </Button>
                         <Select
                           value={selectedActionBy}

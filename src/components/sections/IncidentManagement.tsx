@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useIncidents } from '@/hooks/useIncidents';
 import { supabase } from '@/integrations/supabase/client';
-import { AlertTriangle, Search, Filter, ExternalLink, Clock, Bell, AlertCircle } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { AlertTriangle, Search, Filter, ExternalLink, Clock, Bell, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationComponent } from '@/components/PaginationComponent';
@@ -30,7 +31,14 @@ interface SLABreachStats {
 }
 
 export function IncidentManagement() {
-  const { data: incidents, isLoading, error } = useIncidents();
+  const { role: userRole, analyst } = useAuth();
+  const analystCode = analyst?.code || null;
+  
+  const { data: incidents, isLoading, error } = useIncidents({
+    userRole,
+    analystCode
+  });
+  
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
@@ -44,6 +52,33 @@ export function IncidentManagement() {
     oneMinute: 0
   });
   const [sendingAlerts, setSendingAlerts] = useState<Set<string>>(new Set());
+  const [availableAnalysts, setAvailableAnalysts] = useState<Array<{id: string, name: string, code: string}>>([]);
+  const [analystFilter, setAnalystFilter] = useState('all');
+
+  // Fetch available analysts
+  useEffect(() => {
+    const fetchAnalysts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('analysts')
+          .select('id, name, code')
+          .eq('availability', 'available')
+          .order('name', { ascending: true });
+
+        if (error) throw error;
+        setAvailableAnalysts(data || []);
+      } catch (error) {
+        console.error('Error fetching analysts:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load analysts",
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchAnalysts();
+  }, []);
 
   // Enable realtime updates with custom notification handler
   useEffect(() => {
@@ -177,15 +212,32 @@ export function IncidentManagement() {
         };
       });
 
-      // Update SLA breach stats
+      const filtered = processed.filter(incident => {
+        const searchTermMatch = searchTerm.toLowerCase() === '' ||
+          incident.incident_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          incident.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          incident.analyst_name?.toLowerCase().includes(searchTerm.toLowerCase());
+
+        const statusMatch = statusFilter === 'all' || incident.status === statusFilter;
+        const priorityMatch = priorityFilter === 'all' || incident.priority === priorityFilter;
+        const analystMatch = analystFilter === 'all' || incident.analyst_code === analystFilter;
+
+        return searchTermMatch && statusMatch && priorityMatch && analystMatch;
+      });
+
+      // Update SLA breach stats based on filtered data
+      const filteredThreeMinCount = filtered.filter(p => p.shouldShowSLAAlert && p.sla_remaining_seconds <= 180).length;
+      const filteredTwoMinCount = filtered.filter(p => p.shouldShowSLAAlert && p.sla_remaining_seconds <= 120).length;
+      const filteredOneMinCount = filtered.filter(p => p.shouldShowSLAAlert && p.sla_remaining_seconds <= 60).length;
+
       setSlaBreachStats({
-        threeMinutes: threeMinCount,
-        twoMinutes: twoMinCount,
-        oneMinute: oneMinCount
+        threeMinutes: filteredThreeMinCount,
+        twoMinutes: filteredTwoMinCount,
+        oneMinute: filteredOneMinCount
       });
 
       // Sort incidents: breached first, then by time remaining (ascending), then by priority (descending)
-      processed.sort((a, b) => {
+      filtered.sort((a, b) => {
         // First, prioritize active incidents
         if ((a.status === 'active' || a.status === 'incident') && (b.status !== 'active' && b.status !== 'incident')) return -1;
         if ((a.status !== 'active' && a.status !== 'incident') && (b.status === 'active' || b.status === 'incident')) return 1;
@@ -209,14 +261,14 @@ export function IncidentManagement() {
         return new Date(b.creation_time).getTime() - new Date(a.creation_time).getTime();
       });
 
-      setProcessedIncidents(processed);
+      setProcessedIncidents(filtered);
     };
 
     updateCountdowns();
     const interval = setInterval(updateCountdowns, 1000);
 
     return () => clearInterval(interval);
-  }, [incidents]);
+  }, [incidents, searchTerm, statusFilter, priorityFilter, analystFilter]);
 
   // Send SLA alert for specific incident
   const sendSLAAlertForIncident = async (incidentId: string) => {
@@ -289,25 +341,101 @@ export function IncidentManagement() {
     }
   };
 
-  // Filter incidents based on search and filters
-  const filteredIncidents = processedIncidents.filter(incident => {
-    const matchesSearch = incident.incident_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         incident.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         incident.analyst_name?.toLowerCase().includes(searchTerm.toLowerCase());
+  // Calculate summary counts based on the specified conditions
+  const getIncidentSummary = () => {
+    const now = new Date().getTime();
     
-    const matchesStatus = statusFilter === 'all' || incident.status === statusFilter;
-    const matchesPriority = priorityFilter === 'all' || incident.priority === priorityFilter;
-    const matchesSlaStatus = slaStatusFilter === 'all' || incident.sla_status === slaStatusFilter;
+    return processedIncidents.reduce((acc, incident) => {
+      // Skip if it doesn't match the analyst filter
+      if (analystFilter !== 'all' && incident.analyst_code !== analystFilter) {
+        return acc;
+      }
+      
+      const slaRemaining = incident.sla_remaining_seconds || 0;
+      const status = incident.status || '';
+      const analyst = incident.analyst_name || '';
+      
+      // Triage: status != closed and analyst_name != null and sla_remaining_seconds > 0
+      if (status !== 'closed' && analyst !== '' && slaRemaining > 0) {
+        acc.triage++;
+      }
+      
+      // Warning: status != closed, analyst_name != null, and sla_remaining_seconds < 300
+      if (status !== 'closed' && analyst !== '' && slaRemaining < 300) {
+        acc.warning++;
+      }
+      
+      // Breach: status == closed, analyst_name not null and sla_status == breach
+      if (status === 'closed' && analyst !== '' && incident.sla_status === 'breach') {
+        acc.breached++;
+      }
+      
+      // Escalated: status == escalated
+      if (status === 'escalated') {
+        acc.escalated++;
+      }
+      
+      // Open: status == need review
+      if (status === 'need review') {
+        acc.open++;
+      }
+      
+      // Closed: status == closed
+      if (status === 'closed') {
+        acc.closed++;
+      }
+      
+      return acc;
+    }, { triage: 0, warning: 0, breached: 0, escalated: 0, open: 0, closed: 0 });
+  };
+  
+  // Handle summary card click
+  const handleSummaryClick = (filterType: string) => {
+    // Reset all filters except analyst filter
+    setSearchTerm('');
+    setStatusFilter('all');
+    setPriorityFilter('all');
+    setSlaStatusFilter('all');
     
-    return matchesSearch && matchesStatus && matchesPriority && matchesSlaStatus;
-  });
+    // Set the appropriate filters based on the clicked card
+    switch(filterType) {
+      case 'triage':
+        setStatusFilter('active');
+        break;
+      case 'warning':
+        setStatusFilter('active');
+        setSlaStatusFilter('near_breach');
+        break;
+      case 'breached':
+        setStatusFilter('closed');
+        setSlaStatusFilter('breach');
+        break;
+      case 'escalated':
+        setStatusFilter('escalated');
+        break;
+      case 'open':
+        setStatusFilter('need review');
+        break;
+      case 'closed':
+        setStatusFilter('closed');
+        break;
+    }
+  };
+
+  const incidentSummary = getIncidentSummary();
+
+  // The incidents are now filtered and sorted within the useEffect hook.
+  // The 'processedIncidents' state already contains the data ready for rendering.
+  const filteredAndSortedIncidents = processedIncidents;
 
   const {
     currentPage,
     totalPages,
     paginatedData: paginatedIncidents,
-    goToPage
-  } = usePagination(filteredIncidents, 10);
+    nextPage,
+    prevPage,
+    goToPage,
+  } = usePagination<IncidentWithCountdown>(filteredAndSortedIncidents, 10);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -371,128 +499,148 @@ export function IncidentManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center space-x-2">
-          <Badge variant="outline" className="text-sm">
-            {filteredIncidents.length} Total Incidents
-          </Badge>
+      <div className="flex justify-end items-center">
+        { userRole !== 'L1' && (
+          <div className="flex items-center space-x-4">
+          <div className="w-48">
+            <Select 
+              value={analystFilter} 
+              onValueChange={setAnalystFilter}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by analyst" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Analysts</SelectItem>
+                {availableAnalysts.map((analyst) => (
+                  <SelectItem key={analyst.id} value={analyst.id}>
+                    {analyst.name} ({analyst.code})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+        )}
       </div>
 
-      {/* SLA Breach Warning Section */}
+      {/* Incident Summary Section */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-orange-600" />
-            SLA Breach Warnings
+            <span>Incident Summary</span>
           </CardTitle>
-          <CardDescription>
-            Monitor incidents approaching SLA breach and send alerts to analysts
-          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Triage */}
+            <div 
+              className={`flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200 hover:bg-blue-100 cursor-pointer transition-colors ${statusFilter === 'active' ? 'ring-2 ring-blue-500' : ''}`}
+              onClick={() => handleSummaryClick('triage')}
+            >
               <div>
-                <p className="text-sm font-medium text-yellow-800">≤ 3 Minutes</p>
-                <p className="text-2xl font-bold text-yellow-900">{slaBreachStats.threeMinutes}</p>
+                <p className="text-sm font-medium text-blue-800">Triage</p>
+                <p className="text-2xl font-bold text-blue-900">{incidentSummary.triage}</p>
               </div>
-              <Clock className="w-8 h-8 text-yellow-600" />
+              <div className="p-2 bg-blue-100 rounded-full">
+                <Clock className="w-6 h-6 text-blue-600" />
+              </div>
             </div>
-            <div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg border border-orange-200">
+
+            {/* Warning */}
+            <div 
+              className={`flex items-center justify-between p-4 bg-yellow-50 rounded-lg border border-yellow-200 hover:bg-yellow-100 cursor-pointer transition-colors ${statusFilter === 'active' ? 'ring-2 ring-yellow-500' : ''}`}
+              onClick={() => handleSummaryClick('warning')}
+            >
               <div>
-                <p className="text-sm font-medium text-orange-800">≤ 2 Minutes</p>
-                <p className="text-2xl font-bold text-orange-900">{slaBreachStats.twoMinutes}</p>
+                <p className="text-sm font-medium text-yellow-800">Warning</p>
+                <p className="text-2xl font-bold text-yellow-900">{incidentSummary.warning}</p>
               </div>
-              <Clock className="w-8 h-8 text-orange-600" />
+              <div className="p-2 bg-yellow-100 rounded-full">
+                <AlertTriangle className="w-6 h-6 text-yellow-600" />
+              </div>
             </div>
-            <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200">
+
+            {/* Breached */}
+            <div 
+              className={`flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200 hover:bg-red-100 cursor-pointer transition-colors ${statusFilter === 'closed' && slaStatusFilter === 'breach' ? 'ring-2 ring-red-500' : ''}`}
+              onClick={() => handleSummaryClick('breached')}
+            >
               <div>
-                <p className="text-sm font-medium text-red-800">≤ 1 Minute</p>
-                <p className="text-2xl font-bold text-red-900">{slaBreachStats.oneMinute}</p>
+                <p className="text-sm font-medium text-red-800">Breached</p>
+                <p className="text-2xl font-bold text-red-900">{incidentSummary.breached}</p>
               </div>
-              <Clock className="w-8 h-8 text-red-600" />
+              <div className="p-2 bg-red-100 rounded-full">
+                <AlertCircle className="w-6 h-6 text-red-600" />
+              </div>
             </div>
-            <div className="flex items-center justify-center">
-              <Button 
-                onClick={sendSLAAlert}
-                className="w-full"
-                variant={slaBreachStats.threeMinutes > 0 ? "destructive" : "outline"}
-              >
-                <Bell className="w-4 h-4 mr-2" />
-                Send Bulk SLA Alert
-              </Button>
+
+            {/* Escalated */}
+            <div 
+              className={`flex items-center justify-between p-4 bg-purple-50 rounded-lg border border-purple-200 hover:bg-purple-100 cursor-pointer transition-colors ${statusFilter === 'escalated' ? 'ring-2 ring-purple-500' : ''}`}
+              onClick={() => handleSummaryClick('escalated')}
+            >
+              <div>
+                <p className="text-sm font-medium text-purple-800">Escalated</p>
+                <p className="text-2xl font-bold text-purple-900">{incidentSummary.escalated}</p>
+              </div>
+              <div className="p-2 bg-purple-100 rounded-full">
+                <AlertTriangle className="w-6 h-6 text-purple-600" />
+              </div>
+            </div>
+
+            {/* Open */}
+            <div 
+              className={`flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200 hover:bg-green-100 cursor-pointer transition-colors ${statusFilter === 'need review' ? 'ring-2 ring-green-500' : ''}`}
+              onClick={() => handleSummaryClick('open')}
+            >
+              <div>
+                <p className="text-sm font-medium text-green-800">Open</p>
+                <p className="text-2xl font-bold text-green-900">{incidentSummary.open}</p>
+              </div>
+              <div className="p-2 bg-green-100 rounded-full">
+                <Clock className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+
+            {/* Closed */}
+            <div 
+              className={`flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 cursor-pointer transition-colors ${statusFilter === 'closed' && slaStatusFilter !== 'breach' ? 'ring-2 ring-gray-500' : ''}`}
+              onClick={() => handleSummaryClick('closed')}
+            >
+              <div>
+                <p className="text-sm font-medium text-gray-800">Closed</p>
+                <p className="text-2xl font-bold text-gray-900">{incidentSummary.closed}</p>
+              </div>
+              <div className="p-2 bg-gray-100 rounded-full">
+                <CheckCircle2 className="w-6 h-6 text-gray-600" />
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Search and Filters */}
+
+      {/* Incidents Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="w-5 h-5" />
-            Filters
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <CardTitle>Incidents</CardTitle>
+              <CardDescription>Real-time incident tracking and management with workflow validation</CardDescription>
+            </div>
+            <div className="w-full sm:w-64">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
                   placeholder="Search incidents..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 w-full"
                 />
               </div>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="incident">Incident</SelectItem>
-                <SelectItem value="incident_closed">Incident-Closed</SelectItem>
-                <SelectItem value="false_positive_closed">False-Positive Closed</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={slaStatusFilter} onValueChange={setSlaStatusFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by SLA status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All SLA Status</SelectItem>
-                <SelectItem value="ongoing">Ongoing</SelectItem>
-                <SelectItem value="breach">Breach</SelectItem>
-                <SelectItem value="met">Met</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by priority" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Priorities</SelectItem>
-                <SelectItem value="Very High">Very High</SelectItem>
-                <SelectItem value="High">High</SelectItem>
-                <SelectItem value="Medium">Medium</SelectItem>
-                <SelectItem value="Low">Low</SelectItem>
-                <SelectItem value="Informational">Informational</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Incidents Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Incidents</CardTitle>
-          <CardDescription>Real-time incident tracking and management with workflow validation</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">

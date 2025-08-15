@@ -24,7 +24,7 @@ export interface RequestChange {
   indicators: RequestChangeIndicator[];
 }
 
-export const useRequestChanges = (incidentNumber?: string) => {
+export const useRequestChanges = (incidentNumber?: string, userRole?: string, analystID?: string) => {
   return useQuery({
     queryKey: ['request-changes', incidentNumber],
     queryFn: async () => {
@@ -47,6 +47,10 @@ export const useRequestChanges = (incidentNumber?: string) => {
 
       if (incidentNumber) {
         query = query.eq('incident_number', incidentNumber);
+      }
+
+      if (userRole === 'L1') {
+        query = query.eq('analyst_id', analystID);
       }
 
       const { data: requestChanges, error: requestError } = await query;

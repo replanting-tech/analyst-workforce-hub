@@ -110,6 +110,7 @@ export function CustomerPortalCaseManagement({ user }: CustomerPortalCaseManagem
         title: "Success",
         description: "Notification approved successfully",
       });
+      setSelectedIncidentId(null);
     } catch (error) {
       console.error('Error approving notification:', error);
       toast({
@@ -133,6 +134,10 @@ export function CustomerPortalCaseManagement({ user }: CustomerPortalCaseManagem
         title: "Success",
         description: "Notification rejected successfully",
       });
+      //close modal
+      setSelectedIncidentId(null);
+      
+
     } catch (error) {
       console.error('Error rejecting notification:', error);
       toast({
@@ -234,7 +239,7 @@ export function CustomerPortalCaseManagement({ user }: CustomerPortalCaseManagem
                             View Details
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-2xl">
+                        <DialogContent className="max-w-4xl ">
                           <DialogHeader>
                             <DialogTitle>Incident #{incident.incident_number} Details</DialogTitle>
                           </DialogHeader>
@@ -259,16 +264,16 @@ export function CustomerPortalCaseManagement({ user }: CustomerPortalCaseManagem
                             </div>
                               <div>
                                 <Label>Recommendation</Label>
-                                <div dangerouslySetInnerHTML={{ __html: recommendationContent }}></div>
+                                <div className="max-h-80 overflow-y-auto p-2 border rounded" dangerouslySetInnerHTML={{ __html: recommendationContent }}></div>
                               </div>
-                            {incident.raw_logs && (
+                            {/* {incident.raw_logs && (
                               <div>
                                 <Label>Raw Logs</Label>
                                 <div className="bg-gray-900 text-green-400 p-3 rounded text-xs font-mono max-h-40 overflow-auto">
                                   {JSON.stringify(JSON.parse(incident.raw_logs), null, 2)}
                                 </div>
                               </div>
-                            )}
+                            )} */}
                             <div className="flex gap-2 pt-4">
                               <Button 
                                 onClick={() => handleApproveNotification(incident.incident_id)}

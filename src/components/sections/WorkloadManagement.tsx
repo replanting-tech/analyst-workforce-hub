@@ -23,12 +23,27 @@ import { Activity, TrendingUp, Users, BarChart3, RefreshCw } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAnalysts } from '@/hooks/useAnalysts';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function WorkloadManagement() {
   const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [selectedAnalyst, setSelectedAnalyst] = useState('all');
   
-  const { data: analysts = [], isLoading, error, refetch } = useAnalysts();
+  const { role: userRole, analyst } = useAuth();
+  
+  const { data: analysts = [], isLoading, error, refetch } = useAnalysts({
+    userRole,
+    analystCode: analyst?.code || null
+  });
+  
+  // If L1 user, auto-select their analyst code
+  React.useEffect(() => {
+    if (userRole === 'L1' && analyst?.code) {
+      setSelectedAnalyst(analyst.code);
+    } else {
+      setSelectedAnalyst('all');
+    }
+  }, [userRole, analyst?.code]);
 
   const getAvailabilityColor = (availability: string) => {
     switch (availability) {

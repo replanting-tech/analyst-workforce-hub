@@ -30,7 +30,7 @@ const TagsSection: React.FC<TagsSectionProps> = ({ tags }) => {
   const parsedTags = parseTags(tags);
 
   const getTagColor = (labelType: string) => {
-    switch (labelType.toLowerCase()) {
+    switch (labelType?.toLowerCase()) {
       case 'user':
         return 'bg-blue-100 text-blue-800';
       case 'system':

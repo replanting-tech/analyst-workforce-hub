@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,13 +29,32 @@ interface SLABreachStats {
   oneMinute: number;
 }
 
+interface IncidentSummary {
+  triage: number;
+  warning: number;
+  breached: number;
+  escalated: number;
+  open: number;
+  closed: number;
+}
+
 export function IncidentManagement() {
   const { role: userRole, analyst } = useAuth();
   const analystCode = analyst?.code || null;
+  const [analystFilter, setAnalystFilter] = useState('all'); // Move declaration here
+  const [dateFilter, setDateFilter] = useState<string>(() => {
+    // Set default to today's date
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
+  console.log('Analyst filter:', analystFilter);
+  console.log('Date filter:', dateFilter);
   
   const { data: incidents, isLoading, error } = useIncidents({
     userRole,
-    analystCode
+    analystCode,
+    analystFilter, // Pass the analystFilter state to the hook
+    dateFilter // Pass the dateFilter state to the hook
   });
   
   const navigate = useNavigate();
@@ -53,7 +71,14 @@ export function IncidentManagement() {
   });
   const [sendingAlerts, setSendingAlerts] = useState<Set<string>>(new Set());
   const [availableAnalysts, setAvailableAnalysts] = useState<Array<{id: string, name: string, code: string}>>([]);
-  const [analystFilter, setAnalystFilter] = useState('all');
+  const [incidentSummary, setIncidentSummary] = useState<IncidentSummary>({
+    triage: 0,
+    warning: 0,
+    breached: 0,
+    escalated: 0,
+    open: 0,
+    closed: 0,
+  });
 
   // Fetch available analysts
   useEffect(() => {
@@ -218,11 +243,26 @@ export function IncidentManagement() {
           incident.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           incident.analyst_name?.toLowerCase().includes(searchTerm.toLowerCase());
 
-        const statusMatch = statusFilter === 'all' || incident.status === statusFilter;
+        // Custom status matching logic
+        let statusMatch = true;
+        if (statusFilter === 'all') {
+          statusMatch = true;
+        } else if (statusFilter === 'triage') {
+          // Triage: status != closed and analyst_name != null and sla_remaining_seconds > 0
+          statusMatch = incident.status !== 'closed' && incident.analyst_name !== null && incident.sla_remaining_seconds > 0;
+        } else if (statusFilter === 'warning') {
+          // Warning: status != closed and analyst_name != null and sla_remaining_seconds < 300
+          statusMatch = incident.status !== 'closed' && incident.analyst_name !== null && incident.sla_remaining_seconds < 300;
+        } else {
+          // Direct status matching for other statuses
+          statusMatch = incident.status === statusFilter;
+        }
+
+        const slaStatusMatch = slaStatusFilter === 'all' || incident.sla_status === slaStatusFilter;
         const priorityMatch = priorityFilter === 'all' || incident.priority === priorityFilter;
         const analystMatch = analystFilter === 'all' || incident.analyst_code === analystFilter;
 
-        return searchTermMatch && statusMatch && priorityMatch && analystMatch;
+        return searchTermMatch && statusMatch && slaStatusMatch && priorityMatch && analystMatch;
       });
 
       // Update SLA breach stats based on filtered data
@@ -341,54 +381,64 @@ export function IncidentManagement() {
     }
   };
 
-  // Calculate summary counts based on the specified conditions
-  const getIncidentSummary = () => {
-    const now = new Date().getTime();
-    
-    return processedIncidents.reduce((acc, incident) => {
-      // Skip if it doesn't match the analyst filter
-      if (analystFilter !== 'all' && incident.analyst_code !== analystFilter) {
-        return acc;
-      }
-      
-      const slaRemaining = incident.sla_remaining_seconds || 0;
-      const status = incident.status || '';
-      const analyst = incident.analyst_name || '';
-      
-      // Triage: status != closed and analyst_name != null and sla_remaining_seconds > 0
-      if (status !== 'closed' && analyst !== '' && slaRemaining > 0) {
-        acc.triage++;
-      }
-      
-      // Warning: status != closed, analyst_name != null, and sla_remaining_seconds < 300
-      if (status !== 'closed' && analyst !== '' && slaRemaining < 300) {
-        acc.warning++;
-      }
-      
-      // Breach: status == closed, analyst_name not null and sla_status == breach
-      if (status === 'closed' && analyst !== '' && incident.sla_status === 'breach') {
-        acc.breached++;
-      }
-      
-      // Escalated: status == escalated
-      if (status === 'escalated') {
-        acc.escalated++;
-      }
-      
-      // Open: status == need review
-      if (status === 'need review') {
-        acc.open++;
-      }
-      
-      // Closed: status == closed
-      if (status === 'closed') {
-        acc.closed++;
-      }
-      
-      return acc;
-    }, { triage: 0, warning: 0, breached: 0, escalated: 0, open: 0, closed: 0 });
-  };
-  
+  // Calculate summary counts based on all incidents
+  useEffect(() => {
+    const calculateSummary = () => {
+      if (!incidents) return; // Ensure incidents data is available
+
+      const summary: IncidentSummary = {
+        triage: 0,
+        warning: 0,
+        breached: 0,
+        escalated: 0,
+        open: 0,
+        closed: 0,
+      };
+
+      // Filter incidents by analyst if analystFilter is applied
+      const incidentsForSummary = analystFilter === 'all'
+        ? incidents
+        : incidents.filter(incident => incident.analyst_code === analystFilter);
+
+      incidentsForSummary.forEach(incident => {
+        // Triage: status != closed and analyst_name != null and sla_remaining_seconds > 0
+        if (incident.status !== 'closed' && incident.analyst_name !== null && incident.sla_remaining_seconds > 0) {
+          summary.triage++;
+        }
+        
+        // Warning: status != closed, analyst_name != null, and sla_remaining_seconds < 300
+        if (incident.status !== 'closed' && incident.analyst_name !== null && incident.sla_remaining_seconds < 300) {
+          summary.warning++;
+        }
+        
+        // Breach: sla_status == breach
+        if (incident.sla_status === 'breach') {
+          summary.breached++;
+        }
+        
+        // Escalated: status == escalated
+        if (incident.status === 'escalated') {
+          summary.escalated++;
+        }
+        
+        // Open: status == need review
+        if (incident.status === 'need review') {
+          summary.open++;
+        }
+        
+        // Closed: status == closed
+        if (incident.status === 'closed') {
+          summary.closed++;
+        }
+      });
+
+      setIncidentSummary(summary);
+    };
+
+    calculateSummary();
+  }, [incidents, analystFilter]); // Re-calculate summary when incidents or analystFilter change
+
+
   // Handle summary card click
   const handleSummaryClick = (filterType: string) => {
     // Reset all filters except analyst filter
@@ -400,40 +450,38 @@ export function IncidentManagement() {
     // Set the appropriate filters based on the clicked card
     switch(filterType) {
       case 'triage':
-        setStatusFilter('active');
+        setStatusFilter('triage');
+        setSlaStatusFilter('all');
         break;
       case 'warning':
-        setStatusFilter('active');
-        setSlaStatusFilter('near_breach');
+        setStatusFilter('warning');
+        setSlaStatusFilter('all');
         break;
       case 'breached':
-        setStatusFilter('closed');
+        setStatusFilter('all');
         setSlaStatusFilter('breach');
         break;
       case 'escalated':
         setStatusFilter('escalated');
+        setSlaStatusFilter('all');
         break;
       case 'open':
         setStatusFilter('need review');
+        setSlaStatusFilter('all');
         break;
       case 'closed':
         setStatusFilter('closed');
+        setSlaStatusFilter('all');
         break;
     }
   };
 
-  const incidentSummary = getIncidentSummary();
-
-  // The incidents are now filtered and sorted within the useEffect hook.
-  // The 'processedIncidents' state already contains the data ready for rendering.
   const filteredAndSortedIncidents = processedIncidents;
 
   const {
     currentPage,
     totalPages,
     paginatedData: paginatedIncidents,
-    nextPage,
-    prevPage,
     goToPage,
   } = usePagination<IncidentWithCountdown>(filteredAndSortedIncidents, 10);
 
@@ -502,25 +550,34 @@ export function IncidentManagement() {
       <div className="flex justify-end items-center">
         { userRole !== 'L1' && (
           <div className="flex items-center space-x-4">
-          <div className="w-48">
-            <Select 
-              value={analystFilter} 
-              onValueChange={setAnalystFilter}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by analyst" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Analysts</SelectItem>
-                {availableAnalysts.map((analyst) => (
-                  <SelectItem key={analyst.id} value={analyst.id}>
-                    {analyst.name} ({analyst.code})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="w-48">
+              <label className="block text-sm font-medium mb-1">Period</label>
+              <Input
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+              />
+            </div>
+            <div className="w-48">
+              <label className="block text-sm font-medium mb-1">Analyst</label>
+              <Select
+                value={analystFilter}
+                onValueChange={setAnalystFilter}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by analyst" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Analysts</SelectItem>
+                  {availableAnalysts.map((analyst) => (
+                    <SelectItem key={analyst.code} value={analyst.code}>
+                      {analyst.name} ({analyst.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
         )}
       </div>
 

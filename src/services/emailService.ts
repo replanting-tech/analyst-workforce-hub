@@ -39,7 +39,7 @@ class EmailService {
     subject: string;
     text?: string;
     html?: string;
-  }): Promise<{ success: boolean; message: string; error?: any }> {
+  }): Promise<{ success: boolean; message: string; error?: unknown }> {
     try {
       const info = await this.transporter.sendMail({
         ...mailOptions,

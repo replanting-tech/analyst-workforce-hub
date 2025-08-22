@@ -31,16 +31,52 @@ export interface Incident {
   entities?: string[];
   tags?: string[];
   comments?: string[];
+  title?: string; // Added for report display
+  description?: string; // Added for report display
+  recommendation?: string; // Added for report display
+  threat_type?: string | null; // Added for L3 dashboard
+  action_taken?: string; // Added for report display
+  log_source?: string; // Added for report display
+  severity?: string; // Added for report display
+  threat_indicator?: {
+    ip?: {
+      address?: string;
+      details?: {
+        isp?: string;
+        country?: string;
+        reputation?: string;
+        total_reports?: number;
+        reported_abuse?: string[];
+        abuse_confidence?: string;
+        detections_ratio?: string;
+      };
+      analysis?: string;
+    };
+    hash?: {
+      value?: string;
+      analysis?: string;
+    };
+    domain?: {
+      name?: string;
+      analysis?: string;
+    };
+  };
 }
 
 interface UseIncidentsOptions {
   userRole?: string | null;
   analystCode?: string | null;
+  analystFilter?: string | null; // Add analystFilter option
+  dateFilter?: string | null; // Add dateFilter option
 }
 
-export const useIncidents = ({ userRole, analystCode }: UseIncidentsOptions = {}) => {
+export const useIncidents = ({ userRole, analystCode, analystFilter, dateFilter }: UseIncidentsOptions = {}) => {
+  // Set default dateFilter to today if not provided
+  const today = new Date().toISOString().split('T')[0];
+  const effectiveDateFilter = dateFilter === undefined ? today : dateFilter;
+  
   return useQuery({
-    queryKey: ['incidents', { userRole, analystCode }],
+    queryKey: ['incidents', { userRole, analystCode, analystFilter, dateFilter: effectiveDateFilter }], // Add analystFilter and dateFilter to queryKey
     queryFn: async () => {
       let query = supabase
         .from('v_incident_sla_details')
@@ -51,8 +87,22 @@ export const useIncidents = ({ userRole, analystCode }: UseIncidentsOptions = {}
         query = query.eq('analyst_code', analystCode);
       }
       
-      // For L2 and L3, show all incidents (no additional filtering needed)
-      // L1 without analyst code will see no incidents
+      // Apply analystFilter if provided and not 'all'
+      if (analystFilter && analystFilter !== 'all') {
+        query = query.eq('analyst_code', analystFilter);
+      }
+      
+      // Apply date filter if provided
+      if (effectiveDateFilter) {
+        // Filter incidents created on the specified date
+        const startDate = new Date(effectiveDateFilter);
+        startDate.setHours(0, 0, 0, 0);
+        const endDate = new Date(effectiveDateFilter);
+        endDate.setHours(23, 59, 59, 999);
+        
+        query = query.gte('creation_time', startDate.toISOString())
+                 .lte('creation_time', endDate.toISOString());
+      }
       
       const { data, error } = await query
         .order('created_at', { ascending: false });

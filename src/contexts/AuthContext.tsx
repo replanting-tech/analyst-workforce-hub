@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import { User, Session, PostgrestError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
 export type UserRole = 'L1' | 'L2' | 'L3' | null;
@@ -42,28 +42,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Function to fetch analyst data from analysts table
   const fetchAnalystData = async (email: string) => {
     console.log('Fetching analyst data for:', email);
-    let queryTimeout: NodeJS.Timeout;
-    
     try {
-      // Add a timeout to the query
-      const queryPromise = supabase
-        .from('analysts')
-        .select('*')
-        .eq('email', email)
-        .single();
-        
-      const timeoutPromise = new Promise((_, reject) => {
-        queryTimeout = setTimeout(() => {
-          reject(new Error('Analyst data query timed out after 5 seconds'));
-        }, 5000);
-      });
+      const queryTimeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Analyst data query timed out')), 5000) // 5 seconds timeout
+      );
 
       const { data, error } = await Promise.race([
-        queryPromise,
-        timeoutPromise
-      ]) as { data: any, error: any };
+        supabase.from('analysts').select('*').eq('email', email).single(),
+        queryTimeoutPromise
+      ]) as { data: AnalystData | null, error: PostgrestError | null };
       
-      clearTimeout(queryTimeout);
       
       console.log('Analyst data response received');
       
@@ -86,7 +74,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: (data.role as UserRole) || 'L1',
         };
         
-        console.log('Setting analyst data');
+        console.log('Setting analyst data', data);
         setRole(analystData.role);
         setAnalyst(analystData);
         return analystData;
@@ -107,24 +95,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setRole('L1');
       setAnalyst(defaultAnalyst);
       return defaultAnalyst;
-    } finally {
-      clearTimeout(queryTimeout);
     }
   };
 
   useEffect(() => {
     let isMounted = true;
-    setLoading(true);
-    console.log('AuthProvider mounted, setting loading to true');
+    // setLoading(true); // Already true by default, and handled by the initial onAuthStateChange
+    console.log('AuthProvider mounted, setting up auth state listener');
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', { event, session });
         if (!isMounted) return;
-        
+
         setSession(session);
         setUser(session?.user ?? null);
-        
+
         if (session?.user?.email) {
           console.log('Session has user email, fetching analyst data');
           await fetchAnalystData(session.user.email);
@@ -133,72 +119,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setRole(null);
           setAnalyst(null);
         }
+        // Set loading to false only after the initial state is fully processed
+        setLoading(false);
+        console.log('Auth state processed, setting loading to false');
       }
     );
 
-    // Initial check for existing session with timeout
-    const initializeAuth = async () => {
-      console.log('Initializing auth...');
-      let sessionCheckTimeout: NodeJS.Timeout;
-      
-      try {
-        // Add a timeout to the session check
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) => {
-          sessionCheckTimeout = setTimeout(() => {
-            reject(new Error('Session check timed out after 5 seconds'));
-          }, 5000);
-        });
-
-        const { data: { session }, error } = await Promise.race([
-          sessionPromise,
-          timeoutPromise
-        ]) as { data: { session: any }, error: any };
-        
-        clearTimeout(sessionCheckTimeout);
-        
-        console.log('Initial session check:', { session, error });
-        
-        if (isMounted) {
-          if (error) {
-            console.error('Error getting session:', error);
-            throw error;
-          }
-          
-          setSession(session);
-          setUser(session?.user ?? null);
-          
-          if (session?.user?.email) {
-            console.log('Initial session has email, fetching analyst data');
-            await fetchAnalystData(session.user.email);
-          } else {
-            console.log('No initial session or email');
-            setRole(null);
-            setAnalyst(null);
-          }
-        }
-      } catch (error) {
-        console.error('Error in initializeAuth:', error);
-        // Ensure we clear the loading state even if there's an error
-        if (isMounted) {
-          console.log('Auth initialization failed, setting loading to false');
-          setLoading(false);
-          // Set default values to ensure app doesn't get stuck
-          setSession(null);
-          setUser(null);
-          setRole(null);
-          setAnalyst(null);
-        }
-      } finally {
-        if (isMounted) {
-          console.log('Auth initialization complete, setting loading to false');
-          setLoading(false);
-          clearTimeout(sessionCheckTimeout); // Clean up timeout in case it's still pending
-        }
-      }
-    };
-
-    initializeAuth();
+    // No need for initializeAuth anymore, onAuthStateChange handles initial state
+    // initializeAuth(); // REMOVE THIS
 
     return () => {
       console.log('AuthProvider unmounting');
@@ -222,7 +150,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={value}>
-      {children}
+      {loading ? <div>Loading...</div> : children}
     </AuthContext.Provider>
   );
 };

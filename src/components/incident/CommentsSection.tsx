@@ -5,6 +5,7 @@ import { MessageSquare } from 'lucide-react';
 import { AddCommentForm } from './AddCommentForm';
 import { CommentItem } from './CommentItem';
 import { Comment } from '@/hooks/useComments';
+import { Incident } from '@/hooks/useIncidents'; // Import Incident interface
 
 interface CommentData {
   id: string;
@@ -22,9 +23,12 @@ interface CommentData {
 interface CommentsSectionProps {
   comments?: string[];
   incidentId: string;
+  incident: Incident; // Use Incident type
+  onSendEmail: (comment: string, reportHtml: string) => Promise<void>;
+  isSendingEmail: boolean;
 }
 
-const CommentsSection: React.FC<CommentsSectionProps> = ({ comments, incidentId }) => {
+const CommentsSection: React.FC<CommentsSectionProps> = ({ comments, incidentId, incident, onSendEmail, isSendingEmail }) => {
   console.log(incidentId);
   const parseComments = (commentsArray?: string[]): Comment[] => {
     if (!commentsArray || commentsArray.length === 0) return [];
@@ -41,8 +45,9 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({ comments, incidentId 
             message: parsed.properties.message,
             author: parsed.properties.author.name,
             createdAt: parsed.properties.createdTimeUtc,
-            images: []
-          };
+            images: [],
+            type: 'internal' // Default old comments to internal
+          } as Comment; // Explicitly cast to Comment
         } else {
           // New format
           return parsed as Comment;
@@ -77,7 +82,13 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({ comments, incidentId 
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Add Comment Form */}
-        <AddCommentForm incidentId={incidentId} author={currentUser} />
+        <AddCommentForm
+          incidentId={incidentId}
+          author={currentUser}
+          incident={incident}
+          onSendEmail={onSendEmail}
+          isSendingEmail={isSendingEmail}
+        />
         
         {/* Comments List */}
         {parsedComments.length === 0 ? (
@@ -94,6 +105,9 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({ comments, incidentId 
                 incidentId={incidentId}
                 currentUser={currentUser}
                 canEdit={true}
+                incident={incident} // Pass the incident object
+                onSendEmail={onSendEmail} // Pass the onSendEmail function
+                isSendingEmail={isSendingEmail} // Pass the isSendingEmail state
               />
             ))}
           </div>

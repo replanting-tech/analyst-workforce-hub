@@ -15,13 +15,20 @@ import { DarkModeToggle } from './DarkModeToggle';
 import UserNav from './UserNav';
 import { useLocation } from 'react-router-dom';
 import TemplateManagementPage from '@/pages/TemplateManagement';
+import { L3Dashboard } from './sections/L3Dashboard';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function MainDashboard() {
   const location = useLocation();
-  const pathToSection = location.pathname.slice(1) || 'overview';
+  const { role: userRole } = useAuth();
+  const pathToSection = location.pathname.slice(1) || (userRole === 'L3' ? 'l3-dashboard' : 'overview');
   const [activeSection, setActiveSection] = useState(pathToSection);
 
   const renderContent = () => {
+    if (userRole === 'L3') {
+      return <L3Dashboard />;
+    }
+
     switch (activeSection) {
       case 'overview':
         return <DashboardOverview />;
@@ -43,6 +50,8 @@ export function MainDashboard() {
         return <ReportPage />;
       case 'templates':
         return <TemplateManagementPage />;
+      case 'l3-dashboard':
+        return <L3Dashboard />;
       default:
         return <DashboardOverview />;
     }
@@ -58,7 +67,8 @@ export function MainDashboard() {
       'requests': 'Request Changes',
       'sla': 'SLA Configuration',
       'workload': 'Workload Management',
-      'reports': 'Reports & Analytics'
+      'reports': 'Reports & Analytics',
+      'l3-dashboard': 'L3 Dashboard'
     };
     return sectionTitles[activeSection as keyof typeof sectionTitles] || 'Dashboard';
   };

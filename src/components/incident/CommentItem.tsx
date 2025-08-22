@@ -4,27 +4,50 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { useComments, Comment } from '@/hooks/useComments';
-import { Edit2, Trash2, Save, X, Image as ImageIcon } from 'lucide-react';
+import { Edit2, Trash2, Save, X, Image as ImageIcon, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge'; // For comment type badge
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"; // For email preview
+import { useCustomerReports } from '@/hooks/useCustomerReports'; // To get customer report content
+import HtmlVariableDisplay from '@/components/HtmlVariableDisplay'; // To display HTML content
+import { Incident } from '@/hooks/useIncidents'; // Import Incident interface
 
 interface CommentItemProps {
   comment: Comment;
   incidentId: string;
   currentUser: string;
   canEdit?: boolean;
+  incident: Incident; // Accept incident object
+  onSendEmail: (comment: string, reportHtml: string) => Promise<void>; // New prop for sending email
+  isSendingEmail: boolean; // New prop for email sending status
 }
 
-export const CommentItem: React.FC<CommentItemProps> = ({ 
-  comment, 
-  incidentId, 
-  currentUser, 
-  canEdit = true 
+export const CommentItem: React.FC<CommentItemProps> = ({
+  comment,
+  incidentId,
+  currentUser,
+  canEdit = true,
+  incident, // Destructure incident
+  onSendEmail, // Destructure onSendEmail
+  isSendingEmail // Destructure isSendingEmail
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editMessage, setEditMessage] = useState(comment.message);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [showEmailPreview, setShowEmailPreview] = useState(false); // State for email preview modal
   const { updateComment, deleteComment, uploadImage, isUploading } = useComments(incidentId);
   const { toast } = useToast();
+  const { data: customerReport } = useCustomerReports(incidentId); // Fetch customer report
 
   const isOwner = comment.author === currentUser;
   const canEditComment = canEdit && isOwner;
@@ -117,33 +140,104 @@ export const CommentItem: React.FC<CommentItemProps> = ({
       <CardContent className="pt-4">
         <div className="space-y-3">
           {/* Header */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between">
             <div>
               <p className="font-medium text-sm">{comment.author}</p>
               <p className="text-xs text-muted-foreground">
                 {formatDateTime(comment.createdAt)}
                 {comment.updatedAt && ' (edited)'}
               </p>
+              <Badge
+                variant={comment.type === 'internal' ? 'secondary' : 'default'}
+                className="mt-1"
+              >
+                {comment.type === 'internal' ? 'Internal Note' : 'Reply to Customer'}
+              </Badge>
             </div>
-            {canEditComment && !isEditing && (
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsEditing(true)}
-                >
-                  <Edit2 className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleDelete}
-                  disabled={deleteComment.isPending}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-            )}
+            <div className="flex items-center gap-1">
+              {comment.type === 'customer' && (
+                <AlertDialog open={showEmailPreview} onOpenChange={setShowEmailPreview}>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowEmailPreview(true)}
+                      disabled={isSendingEmail}
+                    >
+                      <Send className="w-4 h-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="max-w-3xl">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Email Preview</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Review the email content before sending.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="max-h-[60vh] overflow-y-auto p-4 border rounded-md">
+                      <h3 className="font-semibold mb-2">Comment:</h3>
+                      <p className="mb-4 whitespace-pre-wrap">{comment.message}</p>
+                      <h3 className="font-semibold mb-2">Customer Report Content:</h3>
+                      {customerReport?.[0]?.content_html ? (
+                        <HtmlVariableDisplay
+                          content={customerReport[0].content_html}
+                          isEditMode={false}
+                          variableName="customer_report_html"
+                        />
+                      ) : (
+                        <p className="text-muted-foreground">No customer report content available.</p>
+                      )}
+                    </div>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel onClick={() => setShowEmailPreview(false)}>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={async () => {
+                          try {
+                            await onSendEmail(
+                              comment.message,
+                              customerReport?.[0]?.content_html || ''
+                            );
+                            toast({
+                              title: "Email Sent",
+                              description: "The email has been sent successfully."
+                            });
+                            setShowEmailPreview(false);
+                          } catch (error) {
+                            console.error('Error sending email:', error);
+                            toast({
+                              title: "Error",
+                              description: "Failed to send email.",
+                              variant: "destructive"
+                            });
+                          }
+                        }}
+                      >
+                        Send Email
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+              {canEditComment && !isEditing && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsEditing(true)}
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDelete}
+                    disabled={deleteComment.isPending}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Content */}

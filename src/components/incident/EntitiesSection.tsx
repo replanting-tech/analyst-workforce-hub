@@ -5,10 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Users, FileText, Monitor, Hash, Globe } from 'lucide-react';
 
 interface Entity {
-  id: string;
-  name: string;
   kind: string;
-  properties: any;
+  value: string;
 }
 
 interface EntitiesSectionProps {
@@ -64,21 +62,40 @@ const EntitiesSection: React.FC<EntitiesSectionProps> = ({ entities }) => {
   };
 
   const getDisplayValue = (entity: Entity) => {
-    const props = entity.properties;
-    
     switch (entity.kind.toLowerCase()) {
       case 'account':
-        return props.displayName || props.accountName || 'Unknown Account';
+        try {
+          const accountDetails = JSON.parse(entity.value.replace(/'/g, '"'));
+          return accountDetails.displayName || accountDetails.accountName || 'Unknown Account';
+        } catch (error) {
+          console.error('Error parsing account details:', error);
+          return 'Invalid Account Data';
+        }
       case 'file':
-        return props.fileName || 'Unknown File';
+        try {
+          const fileDetails = JSON.parse(entity.value);
+          return fileDetails.fileName || 'Unknown File';
+        } catch (e) {
+          return entity.value || 'Unknown File';
+        }
       case 'filehash':
-        return props.hashValue?.substring(0, 16) + '...' || 'Unknown Hash';
+        try {
+          const hashDetails = JSON.parse(entity.value);
+          return hashDetails.hashValue?.substring(0, 16) + '...' || 'Unknown Hash';
+        } catch (e) {
+          return entity.value?.substring(0, 16) + '...' || 'Unknown Hash';
+        }
       case 'host':
-        return props.hostName || 'Unknown Host';
+        try {
+          const hostDetails = JSON.parse(entity.value);
+          return hostDetails.hostName || 'Unknown Host';
+        } catch (e) {
+          return entity.value || 'Unknown Host';
+        }
       case 'ip':
-        return props.address || 'Unknown IP';
+        return entity.value || 'Unknown IP';
       default:
-        return props.friendlyName || entity.name || 'Unknown Entity';
+        return entity.value || 'Unknown Entity';
     }
   };
 
@@ -125,11 +142,21 @@ const EntitiesSection: React.FC<EntitiesSectionProps> = ({ entities }) => {
                 <p className="text-sm font-medium truncate" title={getDisplayValue(entity)}>
                   {getDisplayValue(entity)}
                 </p>
-                {entity.properties.friendlyName && entity.properties.friendlyName !== getDisplayValue(entity) && (
-                  <p className="text-xs text-muted-foreground truncate" title={entity.properties.friendlyName}>
-                    {entity.properties.friendlyName}
-                  </p>
-                )}
+                {(() => {
+                  try {
+                    const parsedValue = JSON.parse(entity.value.replace(/'/g, '"'));
+                    if (parsedValue.friendlyName && parsedValue.friendlyName !== getDisplayValue(entity)) {
+                      return (
+                        <p className="text-xs text-muted-foreground truncate" title={parsedValue.friendlyName}>
+                          {parsedValue.friendlyName}
+                        </p>
+                      );
+                    }
+                  } catch (e) {
+                    // Ignore parsing errors, friendlyName might not be in JSON format
+                  }
+                  return null;
+                })()}
               </div>
             </div>
           ))}

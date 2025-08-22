@@ -10,6 +10,7 @@ export interface Comment {
   createdAt: string;
   updatedAt?: string;
   images?: string[];
+  type: 'internal' | 'customer'; // 'internal' for internal notes, 'customer' for replies to customer
 }
 
 export const useComments = (incidentId: string) => {
@@ -40,21 +41,24 @@ export const useComments = (incidentId: string) => {
   };
 
   const addComment = useMutation({
-    mutationFn: async ({ 
-      message, 
-      author, 
-      images = [] 
-    }: { 
-      message: string; 
-      author: string; 
-      images?: string[] 
+    mutationFn: async ({
+      message,
+      author,
+      images = [],
+      type = 'internal' // Default to internal if not specified
+    }: {
+      message: string;
+      author: string;
+      images?: string[];
+      type?: 'internal' | 'customer';
     }) => {
       const newComment: Comment = {
         id: `comment-${Date.now()}-${Math.random().toString(36).substring(2)}`,
         message,
         author,
         createdAt: new Date().toISOString(),
-        images
+        images,
+        type
       };
 
       // Get current comments
@@ -85,14 +89,16 @@ export const useComments = (incidentId: string) => {
   });
 
   const updateComment = useMutation({
-    mutationFn: async ({ 
-      commentId, 
-      message, 
-      images = [] 
-    }: { 
-      commentId: string; 
-      message: string; 
-      images?: string[] 
+    mutationFn: async ({
+      commentId,
+      message,
+      images = [],
+      type // Add type to update mutation
+    }: {
+      commentId: string;
+      message: string;
+      images?: string[];
+      type?: 'internal' | 'customer'; // Make type optional for updates
     }) => {
       // Get current comments
       const { data: incident } = await supabase
@@ -109,6 +115,7 @@ export const useComments = (incidentId: string) => {
             ...comment,
             message,
             images,
+            type: type !== undefined ? type : comment.type, // Update type if provided, otherwise keep existing
             updatedAt: new Date().toISOString()
           });
         }

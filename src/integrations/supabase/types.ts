@@ -736,6 +736,7 @@ export type Database = {
           sla_target_time: string | null
           status: string | null
           tags: string[] | null
+          threat_type: string | null
           updated_at: string | null
         }
         Insert: {
@@ -758,6 +759,7 @@ export type Database = {
           sla_target_time?: string | null
           status?: string | null
           tags?: string[] | null
+          threat_type?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -780,6 +782,7 @@ export type Database = {
           sla_target_time?: string | null
           status?: string | null
           tags?: string[] | null
+          threat_type?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1105,6 +1108,7 @@ export type Database = {
           incident_number: string | null
           incident_url: string | null
           jira_ticket_id: string | null
+          log_source: string | null
           priority: string | null
           raw_logs: string | null
           resolution_minutes: number | null
@@ -1137,6 +1141,7 @@ export type Database = {
           raw_logs: string | null
           sla_target_time: string | null
           status: string | null
+          threat_type: string | null
           updated_at: string | null
           workspace_name: string | null
         }

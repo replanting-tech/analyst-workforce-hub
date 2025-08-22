@@ -73,15 +73,15 @@ interface IncidentReportVersion {
 
 // Default fields for a new report based on the template
 const DEFAULT_FIELDS: ReportField[] = [
-  { id: 'ticket_id', key: 'Ticket ID', value: '', isEditable: true, required: true },
-  { id: 'ticket_name', key: 'Ticket Name', value: '', isEditable: true, required: true },
-  { id: 'log_source', key: 'Log Source', value: '', isEditable: true, required: true },
-  { id: 'alert_date', key: 'Alert Date', value: '', isEditable: true, required: true },
-  { id: 'incident_severity', key: 'Incident Severity', value: '', isEditable: true, required: true },
-  { id: 'entity', key: 'Entity', value: '', isEditable: true, required: true },
-  { id: 'description', key: 'Description', value: '', isEditable: true, required: true },
-  { id: 'threat_indicators', key: 'Threat Indicators', value: '', isEditable: true, required: false },
-  { id: 'technical_recommendation', key: 'Technical Recommendation', value: '', isEditable: true, required: false },
+  { id: 'ticket_id', key: 'Ticket ID', value: '{{ticket_id}}', isEditable: true, required: true },
+  { id: 'ticket_name', key: 'Ticket Name', value: '{{ticket_name}}', isEditable: true, required: true },
+  { id: 'log_source', key: 'Log Source', value: '{{log_source}}', isEditable: true, required: true },
+  { id: 'alert_date', key: 'Alert Date', value: '{{alert_date}}', isEditable: true, required: true },
+  { id: 'incident_severity', key: 'Incident Severity', value: '{{incident_severity}}', isEditable: true, required: true },
+  { id: 'entity', key: 'Entity', value: '{{entity}}', isEditable: true, required: true },
+  { id: 'description', key: 'Description', value: '{{description}}', isEditable: true, required: true },
+  { id: 'threat_indicators', key: 'Threat Indicators', value: '{{threat_indicators}}', isEditable: true, required: false },
+  { id: 'technical_recommendation', key: 'Technical Recommendation', value: '{{technical_recommendation}}', isEditable: true, required: false },
   // { id: 'analyst_notes', key: 'Analyst Notes', value: '', isEditable: true, required: false },
 ];
 
@@ -313,6 +313,7 @@ export function useStructuredReport(incidentId: string): UseStructuredReportRetu
       }
     }
 
+    console.log(`transformIncidentToReportField: fieldId=${fieldId}, value=${value}`);
     return typeof value === 'string' ? value : undefined;
   }, []);
 

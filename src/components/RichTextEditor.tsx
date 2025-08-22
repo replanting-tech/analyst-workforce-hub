@@ -24,7 +24,7 @@ export default function RichTextEditor({
   value = '',
   onChange
 }: RichTextEditorProps) {
-  const editorRef = useRef<any>(null);
+  const editorRef = useRef<Editor['editor'] | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [currentContent, setCurrentContent] = useState<string>(value);
   const [changeSummary, setChangeSummary] = useState<string>('');
@@ -169,7 +169,7 @@ export default function RichTextEditor({
             editor.mode.set(isCustomerPortal ? 'readonly' : 'design');
           }
         }}
-        initialValue={currentContent}
+        value={currentContent}
         init={{
           height: 500,
           menubar: false,

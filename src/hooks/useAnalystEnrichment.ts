@@ -9,7 +9,7 @@ export interface AnalystEnrichment {
   threatName: string;
   threatCategory?: string;
   description?: string;
-  technicalRecommendation?: string;
+  recommendation?: string;
 }
 
 export const useAnalystEnrichment = (incidentId: string) => {
@@ -22,17 +22,7 @@ export const useAnalystEnrichment = (incidentId: string) => {
 
     try {
       // Update the incident_classification field with enrichment data
-      const { error: updateError } = await supabase
-        .from('incidents')
-        .update({
-          incident_classification: JSON.stringify(enrichmentData),
-          updated_at: new Date().toISOString()
-        })
-        .eq('incident_id', incidentId);
 
-      if (updateError) {
-        throw updateError;
-      }
 
       return { success: true };
     } catch (err) {

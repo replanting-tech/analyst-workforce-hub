@@ -77,9 +77,10 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
   const [isCustomerPortal, setIsCustomerPortal] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState<boolean>(true);
-  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [requestSubmitted, setRequestSubmitted] = useState<boolean>(false);
-  const [requestData, setRequestData] = useState<{id: string | number, status: string} | null>(null);
+  const [requestData, setRequestData] = useState<{ id: string | number, status: string } | null>(null);
 
   // Define a type for the raw template from Supabase
   type RawTemplate = Omit<Template, 'variables'> & {
@@ -103,21 +104,20 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
         // Parse the variables from JSONB to string[]
         const parsedTemplates: Template[] = (data || []).map((template: any) => ({
           ...template,
-          variables: Array.isArray(template.variables) 
-            ? template.variables 
-            : (typeof template.variables === 'string' 
-                ? JSON.parse(template.variables) 
-                : [])
+          variables: Array.isArray(template.variables)
+            ? template.variables
+            : (typeof template.variables === 'string'
+              ? JSON.parse(template.variables)
+              : [])
         }));
 
         setTemplates(parsedTemplates);
-        
-        // Set the default template if available
+
+        // Set default template on initial load
         if (parsedTemplates.length > 0) {
           const defaultTemplate = parsedTemplates.find(t => t.is_default) || parsedTemplates[0];
           setSelectedTemplateId(defaultTemplate.id);
-          // Apply the default template
-          applyTemplate(defaultTemplate);
+          setSelectedTemplate(defaultTemplate);
         }
       } catch (error) {
         console.error('Error fetching templates:', error);
@@ -134,45 +134,123 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
     fetchTemplates();
   }, []);
 
-  // Apply template to form
-  const applyTemplate = (template: Template) => {
-    if (!template) return;
-
-    // Create a copy of the current report data
-    const updatedReport = { ...reportDisplayData };
-
-    // Ensure variables is an array
-    const templateVariables = Array.isArray(template.variables) ? template.variables : [];
-
-    // Update fields based on template variables
-    templateVariables.forEach(variable => {
-      // Only process string variables
-      if (typeof variable === 'string') {
-        // Only update if the variable exists in reportDisplayData and is a string field
-        if (variable in updatedReport && 
-            (typeof updatedReport[variable] === 'string' || updatedReport[variable] === undefined)) {
-          // Preserve existing values if they exist
-          if (!updatedReport[variable]) {
-            updatedReport[variable] = `[${variable.toUpperCase()}_VALUE]`;
-          }
-        }
-      }
-    });
-
-    // For the description, use the template content if it's not empty
-    if (template.template_content) {
-      updatedReport.incident_description = template.template_content;
-    }
-
-    // Update the state
-    setReportDisplayData(updatedReport);
+  // Function to render template content with variables replaced
+  // Helper function to escape HTML special characters
+  const escapeHtml = (unsafe: string): string => {
+    if (!unsafe) return '';
+    return unsafe
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+  
+  // Helper function to escape regex special characters
+  const escapeRegExp = (string: string): string => {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   };
 
-  const handleTemplateChange = (value: string) => {
-    setSelectedTemplateId(value);
-    const selectedTemplate = templates.find(t => t.id === value);
-    if (selectedTemplate) {
-      applyTemplate(selectedTemplate);
+  const renderTemplate = () => {
+    if (!selectedTemplate) return null;
+    
+    // Create a copy of the template content
+    let content = selectedTemplate.template_content;
+    
+    // Define all possible variables with their values
+    const variables: Record<string, string> = {
+      ticket_key: reportDisplayData.ticket_key || '',
+      ticket_name: reportDisplayData.ticket_name || '',
+      log_source: reportDisplayData.log_source || '',
+      date_of_incident: reportDisplayData.date_of_incident || '',
+      priority: reportDisplayData.priority || '',
+      src_ip: reportDisplayData.src_ip || '',
+      device_hostname: reportDisplayData.device_hostname || '',
+      username: reportDisplayData.username || '',
+      threat_category: enrichmentData?.threatCategory || reportDisplayData.threat_category || '',
+      incident_description: reportDisplayData.incident_description || '',
+      action_taken: reportDisplayData.action_taken || '',
+      ip_analysis: enrichmentData?.threatIndicatorIP || '',
+      domain_analysis: enrichmentData?.threatIndicatorDomain || '',
+      filehash_analysis: enrichmentData?.threatIndicatorHash || '',
+      recommendation_action: enrichmentData?.recommendation || ''
+    };
+
+    // For edit mode, we'll handle variables differently
+    if (isEditMode) {
+      // First, escape the template content to prevent React from parsing it
+      const escapedContent = content
+        .replace(/\{/g, '&#123;')
+        .replace(/\}/g, '&#125;');
+      
+      // Then replace all variables with clickable spans
+      let processedContent = escapedContent;
+      
+      // Create a map of variable names to their display values
+      const varMap = new Map<string, string>();
+      
+      // Process each variable
+      Object.entries(variables).forEach(([key, value]) => {
+        // Create a unique ID for each variable
+        const varId = `__var_${key}__`;
+        varMap.set(varId, key);
+        
+        // Replace both {var} and {{var}} patterns
+        const patterns = [
+          new RegExp(`\\{\\s*${key}\\s*\\}`, 'g'),
+          new RegExp(`\\{\\{${key}\\}\\}`, 'g')
+        ];
+        
+        patterns.forEach(pattern => {
+          processedContent = processedContent.replace(
+            pattern,
+            `<span id="${varId}" class="inline-block cursor-pointer bg-pink-200 px-1 rounded" 
+                  onclick="window.handleVarClick('${key}', '${escapeHtml(value)}')">
+              ${escapeHtml(value) || `{${key}}`}
+            </span>`
+          );
+        });
+      });
+      
+      // Add click handler to the window object
+      (window as any).handleVarClick = (varName: string, currentValue: string) => {
+        handleReportClick(varName, currentValue);
+      };
+
+      return (
+        <div 
+          className="prose max-w-none"
+          dangerouslySetInnerHTML={{ __html: processedContent }}
+        />
+      );
+    } else {
+      // For non-edit mode, just replace all variables with their values
+      Object.entries(variables).forEach(([key, value]) => {
+        // Replace both {var} and {{var}} patterns
+        const patterns = [
+          new RegExp(`\\{\\s*${key}\\s*\\}`, 'g'),
+          new RegExp(`\\{\\{${key}\\}\\}`, 'g')
+        ];
+        
+        patterns.forEach(pattern => {
+          content = content.replace(pattern, value);
+        });
+      });
+
+      return (
+        <div 
+          className="prose max-w-none"
+          dangerouslySetInnerHTML={{ __html: content }}
+        />
+      );
+    }
+  };
+
+  const handleTemplateChange = (templateId: string) => {
+    const template = templates?.find(t => t.id === templateId);
+    if (template) {
+      setSelectedTemplate(template);
+      setSelectedTemplateId(templateId);
     }
   };
 
@@ -406,15 +484,15 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
       console.warn(`Invalid field key: ${fieldKey}`);
       return;
     }
-    
+
     // Set the field key as string (since editingFieldKey is now string | null)
     setEditingFieldKey(fieldKey);
-    
+
     // Convert value to string if it's an array or undefined
-    const stringValue = Array.isArray(value) 
+    const stringValue = Array.isArray(value)
       ? value.join(', ')
       : value || '';
-      
+
     setEditingFieldValue(stringValue);
     setIsReportModalOpen(true);
   };
@@ -438,7 +516,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
 
     // Type assertion to ensure the key is valid for ReportDisplayData
     const validFieldKey = editingFieldKey as keyof ReportDisplayData;
-    
+
     // Only update if the field is a string field
     const currentValue = reportDisplayData[validFieldKey as keyof typeof reportDisplayData];
     if (currentValue !== undefined && typeof currentValue !== 'string') {
@@ -488,65 +566,65 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
     // Save to incident_report_versions table
     try {
       const changeSummary = `Updated ${getFieldLabel(editingFieldKey)}: ${editingFieldValue.substring(0, 100)}...`;
-      
+
       const generateReportHtml = (reportData: ReportDisplayData, enrichment: AnalystEnrichment) => {
         return `
-<table border="1" cellspacing="0" cellpadding="6">
-  <tbody>
-    <tr>
-      <td><b>Ticket ID</b></td>
-      <td><span>${reportData.ticket_key}</span></td>
-    </tr>
-    <tr>
-      <td><b>Ticket Name</b></td>
-      <td><span>${reportData.ticket_name}</span></td>
-    </tr>
-    <tr>
-      <td><b>Log Source</b></td>
-      <td><span>${reportData.log_source}</span></td>
-    </tr>
-    <tr>
-      <td><b>Alert Date</b></td>
-      <td><span>${reportData.date_of_incident}</span></td>
-    </tr>
-    <tr>
-      <td><b>Severity Level</b></td>
-      <td><span>${reportData.priority}</span></td>
-    </tr>
-    <tr>
-      <td><b>Entity</b></td>
-      <td>
-        <div>Source IP: <span>${reportData.src_ip}</span></div>
-        <div>Asset Hostname: <span>${reportData.device_hostname}</span></div>
-        <div>Username: <span>${reportData.username}</span></div>
-      </td>
-    </tr>
-    <tr>
-      <td><b>Description</b></td>
-      <td>
-        <div>Threat Category: <span>${enrichment.threatCategory ?? reportData.threat_category}</span></div>
-        <div>${enrichment.description}</div>
-        <div>
+          <table border="1" cellspacing="0" cellpadding="6">
+          <tbody>
+          <tr>
+          <td><b>Ticket ID</b></td>
+          <td><span>${reportData.ticket_key}</span></td>
+          </tr>
+          <tr>
+          <td><b>Ticket Name</b></td>
+          <td><span>${reportData.ticket_name}</span></td>
+          </tr>
+          <tr>
+          <td><b>Log Source</b></td>
+          <td><span>${reportData.log_source}</span></td>
+          </tr>
+          <tr>
+          <td><b>Alert Date</b></td>
+          <td><span>${reportData.date_of_incident}</span></td>
+          </tr>
+          <tr>
+          <td><b>Severity Level</b></td>
+          <td><span>${reportData.priority}</span></td>
+          </tr>
+          <tr>
+          <td><b>Entity</b></td>
+          <td>
+          <div>Source IP: <span>${reportData.src_ip}</span></div>
+          <div>Asset Hostname: <span>${reportData.device_hostname}</span></div>
+          <div>Username: <span>${reportData.username}</span></div>
+          </td>
+          </tr>
+          <tr>
+          <td><b>Description</b></td>
+          <td>
+          <div>Threat Category: <span>${enrichment.threatCategory ?? reportData.threat_category}</span></div>
+          <div>${enrichment.description}</div>
+          <div>
           Saat ini, <span>${reportData.log_source}</span> telah melakukan tindakan
           ${reportData.action_taken} terhadap file trojan berikut.
-        </div>
-      </td>
-    </tr>
-    <tr>
-      <td><b>Threat Indicators</b></td>
-      <td>
-        <div>1. IP analysis: ${enrichment.threatIndicatorIP}</div>
-        <div>2. Domain analysis: ${enrichment.threatIndicatorDomain}</div>
-        <div>3. Filehash analysis: ${enrichment.threatIndicatorHash}</div>
-      </td>
-    </tr>
-    <tr>
-      <td><b>Technical Recommendation</b></td>
-      <td>${enrichment.recommendation}</td>
-    </tr>
-  </tbody>
-</table>
-        `;
+          </div>
+          </td>
+          </tr>
+          <tr>
+          <td><b>Threat Indicators</b></td>
+          <td>
+          <div>1. IP analysis: ${enrichment.threatIndicatorIP}</div>
+          <div>2. Domain analysis: ${enrichment.threatIndicatorDomain}</div>
+          <div>3. Filehash analysis: ${enrichment.threatIndicatorHash}</div>
+          </td>
+          </tr>
+          <tr>
+          <td><b>Technical Recommendation</b></td>
+          <td>${enrichment.recommendation}</td>
+          </tr>
+          </tbody>
+          </table>
+          `;
       };
 
       const reportHtmlContent = generateReportHtml(updatedReportData, enrichmentData);
@@ -723,7 +801,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
 
     setReportDisplayData({
       ticket_key: incident.incident_number || 'NOT_FOUND',
-      ticket_name: incident.log_source + "/" + extractedValuesFromRawLogs.src_ip + "/" + incident.priority + "/" + (extractedValuesFromRawLogs.action_taken || "NA")  || 'NOT_FOUND',
+      ticket_name: incident.log_source + "/" + extractedValuesFromRawLogs.src_ip + "/" + incident.priority + "/" + (extractedValuesFromRawLogs.action_taken || "NA") || 'NOT_FOUND',
       log_source: incident.log_source || log_source || 'NOT_FOUND',
       date_of_incident: alert_date ? new Date(alert_date).toLocaleString() : 'NOT_FOUND',
       priority: incident.priority || 'NOT_FOUND',
@@ -845,10 +923,10 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
 
   const handleConfirmAction = async () => {
     if (!incident) return;
-    
+
     try {
       setTemplatesLoading(true);
-      
+
       const { data: requestChange, error } = await supabase
         .from('request_changes')
         .insert({
@@ -868,21 +946,21 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
       };
       setRequestData(requestData);
       setRequestSubmitted(true);
-      
+
       await queryClient.invalidateQueries({
         queryKey: ['request-changes', incident.incident_number]
       });
-      
+
       localStorage.setItem(
         `request_${incident.incident_number}`,
         JSON.stringify(requestData)
       );
-      
+
       toast({
         title: 'Success',
         description: 'Request change has been submitted successfully',
       });
-      
+
     } catch (error) {
       console.error('Error creating request change:', error);
       toast({
@@ -907,10 +985,10 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
   useEffect(() => {
     const checkExistingRequest = async () => {
       if (!incident) return;
-      
+
       try {
         setTemplatesLoading(true);
-        
+
         const storedRequest = localStorage.getItem(`request_${incident.incident_number}`);
         if (storedRequest) {
           const parsed = JSON.parse(storedRequest);
@@ -918,7 +996,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
           setRequestSubmitted(true);
           return;
         }
-        
+
         const { data: existingRequest, error } = await supabase
           .from('request_changes')
           .select('id, status')
@@ -926,9 +1004,9 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
-          
+
         if (error) throw error;
-        
+
         if (existingRequest) {
           localStorage.setItem(
             `request_${incident.incident_number}`,
@@ -937,14 +1015,14 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
           setRequestData(existingRequest);
           setRequestSubmitted(true);
         }
-        
+
       } catch (error) {
         console.error('Error checking existing request:', error);
       } finally {
         setTemplatesLoading(false);
       }
     };
-    
+
     const fetchTemplates = async () => {
       try {
         // Replace this with your actual data fetching logic
@@ -961,9 +1039,9 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
 
   const sendEmail = async () => {
     if (!incident || !reportDisplayData.recommendation_action) return;
-    
+
     setIsSendingEmail(true);
-    
+
     const payload = {
       incidentId: incident.id,
       customerName: incident.customer_name,
@@ -1154,8 +1232,8 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                     className="ml-2"
                     variant={
                       incident.customer_notification === 'approved' ? 'default' :
-                      incident.customer_notification === 'waiting for approval' ? 'destructive' :
-                      incident.customer_notification === 'rejected' ? 'secondary' : 'outline'
+                        incident.customer_notification === 'waiting for approval' ? 'destructive' :
+                          incident.customer_notification === 'rejected' ? 'secondary' : 'outline'
                     }
                   >
                     Notification: {incident.customer_notification}
@@ -1177,7 +1255,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
           </CardHeader>
           <CardContent>
             <div className="space-y-4 mb-2">
-            {!isCustomerPortal && <div className="flex items-center justify-between gap-4">
+              {!isCustomerPortal && <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4" />
@@ -1204,149 +1282,173 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                     </SelectContent>
                   </Select>
                   <Button variant="outline">
-                    Edit 
+                    Edit
                   </Button>
                 </div>
               </div>}
             </div>
 
-              <div className="overflow-x-auto">
-                <table className="min-w-full bg-white border border-gray-200">
-                <tbody>
-                  <tr className="border-b">
-                    <td className="px-4 py-2 font-bold w-1/3">Ticket ID</td>
-                    <td className="px-4 py-2">
-                      <div className={`inline-block ${isEditMode ? 'cursor-pointer' : ''}`} onClick={() => isEditMode && handleReportClick('ticket_key', reportDisplayData.ticket_key)}>
-                        <span className="bg-pink-200">
-                          {isEditMode ? `{{ticket_key}}` : reportDisplayData.ticket_key}
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="px-4 py-2 font-bold">Ticket Name</td>
-                    <td className="px-4 py-2">
-                      <div className={`inline-block ${isEditMode ? 'cursor-pointer' : ''}`} onClick={() => isEditMode && handleReportClick('ticket_name', reportDisplayData.ticket_name)}>
-                        <span className="bg-pink-200">
-                          {isEditMode ? `{{ticket_name}}` : reportDisplayData.ticket_name}
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="px-4 py-2 font-bold">Log Source</td>
-                    <td className="px-4 py-2">
-                      <div className={`inline-block ${isEditMode ? 'cursor-pointer' : ''}`} onClick={() => isEditMode && handleReportClick('log_source', reportDisplayData.log_source)}>
-                        <span className="bg-pink-200">
-                          {isEditMode ? `{{log_source}}` : reportDisplayData.log_source}
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="px-4 py-2 font-bold">Alert Date</td>
-                    <td className="px-4 py-2">
-                      <div className={`inline-block ${isEditMode ? 'cursor-pointer' : ''}`} onClick={() => isEditMode && handleReportClick('date_of_incident', reportDisplayData.date_of_incident)}>
-                        <span className="bg-pink-200">
-                          {isEditMode ? `{{date_of_incident}}` : reportDisplayData.date_of_incident}
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="px-4 py-2 font-bold">Severity Level</td>
-                    <td className="px-4 py-2">
-                      <div className={`inline-block ${isEditMode ? 'cursor-pointer' : ''}`} onClick={() => isEditMode && handleReportClick('priority', reportDisplayData.priority)}>
-                        <span className="bg-pink-200">
-                          {isEditMode ? `{{priority}}` : reportDisplayData.priority}
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="px-4 py-2 font-bold">Entity</td>
-                    <td className="px-4 py-2">
-                      <div>Source IP: <div className={`inline-block ${isEditMode ? 'cursor-pointer' : ''}`} onClick={() => isEditMode && handleReportClick('src_ip', reportDisplayData.src_ip)}><span className="bg-pink-200">{isEditMode ? `{{src_ip}}` : reportDisplayData.src_ip}</span></div></div>
-                      <div>Asset Hostname: <div className={`inline-block ${isEditMode ? 'cursor-pointer' : ''}`} onClick={() => isEditMode && handleReportClick('device_hostname', reportDisplayData.device_hostname)}><span className="bg-pink-200">{isEditMode ? `{{device_hostname}}` : reportDisplayData.device_hostname}</span></div></div>
-                      <div>Username: <div className={`inline-block ${isEditMode ? 'cursor-pointer' : ''}`} onClick={() => isEditMode && handleReportClick('username', reportDisplayData.username)}><span className="bg-pink-200">{isEditMode ? `{{username}}` : reportDisplayData.username}</span></div></div>
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="px-4 py-2 font-bold">Description</td>
-                    <td className="px-4 py-2">
-                      <div>Threat Category: <div className={`inline-block ${isEditMode ? 'cursor-pointer' : ''}`} onClick={() => isEditMode && handleReportClick('threat_category', enrichmentData.threatCategory)}><span className="bg-pink-200">{isEditMode ? `{{threat_category}}` : (enrichmentData.threatCategory ?? reportDisplayData.threat_category)}</span></div></div>
-                      <div><div className={`inline-block ${isEditMode ? 'cursor-pointer' : ''}`} onClick={() => isEditMode && handleReportClick('incident_description', reportDisplayData.incident_description)}><HtmlVariableDisplay content={enrichmentData.description} isEditMode={isEditMode} variableName="incident_description" /></div></div>
-                      <div>
-                        Saat ini, <div className={`inline-block ${isEditMode ? 'cursor-pointer' : ''}`} onClick={() => isEditMode && handleReportClick('log_source', reportDisplayData.log_source)}><span className="bg-pink-200">{isEditMode ? `{{log_source}}` : reportDisplayData.log_source}</span></div> telah melukan tindakan <div className={`inline-block ${isEditMode ? 'cursor-pointer' : ''}`} onClick={() => isEditMode && handleReportClick('action_taken', reportDisplayData.action_taken)}><HtmlVariableDisplay content={reportDisplayData.action_taken} isEditMode={isEditMode} variableName="action_taken" /></div> terhadap file trojan berikut.
-                      </div>
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="px-4 py-2 font-bold">Threat Indicators</td>
-                    <td className="px-4 py-2">
-                      <div>1. IP analysis: <div className={`inline-block ${isEditMode ? 'cursor-pointer' : ''}`} onClick={() => isEditMode && handleReportClick('ip_analysis', enrichmentData.threatIndicatorIP)}><HtmlVariableDisplay content={enrichmentData.threatIndicatorIP} isEditMode={isEditMode} variableName="ip_analysis" /></div></div>
-                      <div>2. Domain analysis: <div className={`inline-block ${isEditMode ? 'cursor-pointer' : ''}`} onClick={() => isEditMode && handleReportClick('domain_analysis', enrichmentData.threatIndicatorDomain)}><HtmlVariableDisplay content={enrichmentData.threatIndicatorDomain} isEditMode={isEditMode} variableName="domain_analysis" /></div></div>
-                      <div>3. Filehash analysis: <div className={`inline-block ${isEditMode ? 'cursor-pointer' : ''}`} onClick={() => isEditMode && handleReportClick('filehash_analysis', enrichmentData.threatIndicatorHash)}><HtmlVariableDisplay content={enrichmentData.threatIndicatorHash} isEditMode={isEditMode} variableName="filehash_analysis" /></div></div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-2 font-bold">Technical Recommendation</td>
-                    <td className="px-4 py-2">
-                      <div className={`inline-block ${isEditMode ? 'cursor-pointer' : ''}`} onClick={() => isEditMode && handleReportClick('recommendation_action', reportDisplayData.recommendation_action)}>
-                        <HtmlVariableDisplay content={enrichmentData.recommendation} isEditMode={isEditMode} variableName="recommendation_action" />
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-
-              <Dialog open={isReportModalOpen} onOpenChange={setIsReportModalOpen}>
-                <DialogContent className="max-w-4xl">
-                  <DialogHeader>
-                    <DialogTitle>Edit {editingFieldKey ? getFieldLabel(editingFieldKey) : 'Value'}</DialogTitle>
-                    <DialogDescription>
-                      Update the value for {editingFieldKey ? getFieldLabel(editingFieldKey) : 'this field'}.
-                    </DialogDescription>
-                  </DialogHeader>
-
-                  {editingFieldKey && ['incident_description', 'action_taken', 'ip_analysis', 'domain_analysis', 'filehash_analysis', 'description', 'recommendation_action'].includes(editingFieldKey) ? (
-                    <div className="mt-4">
-                      <Editor
-                        apiKey='9pxbmembo1uetj3qto7w4t0ce6vi14e321zvnvyip544v0yi'
-                        onInit={(evt, editor) => (editorRef.current = editor)}
-                        value={editingFieldValue}
-                        init={{
-                          height: 300,
-                          menubar: false,
-                          plugins: [
-                            'advlist autolink lists link image charmap print preview anchor',
-                            'searchreplace visualblocks code fullscreen',
-                            'insertdatetime media table paste code help wordcount'
-                          ],
-                          toolbar: 'undo redo | formatselect | ' +
-                            'bold italic backcolor | alignleft aligncenter ' +
-                            'alignright alignjustify | bullist numlist outdent indent | ' +
-                            'removeformat | help',
-                          content_style: 'body { font-family:Inter,sans-serif; font-size:14px }',
-                        }}
-                        onEditorChange={(content) => setEditingFieldValue(content)}
-                      />
+            <div className="w-full">
+              {isEditMode ? (
+                <div className="prose max-w-none">
+                  <h2 className="text-xl font-bold mb-4">Incident Report</h2>
+                  
+                  <div className="mb-4">
+                    <p><strong>Ticket ID</strong>: 
+                      <span className={`inline-block cursor-pointer bg-pink-200 px-1 rounded`} 
+                            onClick={() => handleReportClick('ticket_key', reportDisplayData.ticket_key)}>
+                        {reportDisplayData.ticket_key}
+                      </span>
+                    </p>
+                    
+                    <p><strong>Ticket Name</strong>: 
+                      <span className={`inline-block cursor-pointer bg-pink-200 px-1 rounded`} 
+                            onClick={() => handleReportClick('ticket_name', reportDisplayData.ticket_name)}>
+                        {reportDisplayData.ticket_name}
+                      </span>
+                    </p>
+                    
+                    <p><strong>Log Source</strong>: 
+                      <span className={`inline-block cursor-pointer bg-pink-200 px-1 rounded`} 
+                            onClick={() => handleReportClick('log_source', reportDisplayData.log_source)}>
+                        {reportDisplayData.log_source}
+                      </span>
+                    </p>
+                    
+                    <p><strong>Alert Date</strong>: 
+                      <span className={`inline-block cursor-pointer bg-pink-200 px-1 rounded`} 
+                            onClick={() => handleReportClick('date_of_incident', reportDisplayData.date_of_incident)}>
+                        {reportDisplayData.date_of_incident}
+                      </span>
+                    </p>
+                    
+                    <p><strong>Severity Level</strong>: 
+                      <span className={`inline-block cursor-pointer bg-pink-200 px-1 rounded`} 
+                            onClick={() => handleReportClick('priority', reportDisplayData.priority)}>
+                        {reportDisplayData.priority}
+                      </span>
+                    </p>
+                  </div>
+                  
+                  <h3 className="text-lg font-semibold mt-6 mb-2">Entity</h3>
+                  <ul className="list-disc pl-5 mb-4">
+                    <li><strong>Source IP</strong>: 
+                      <span className="inline-block cursor-pointer bg-pink-200 px-1 rounded" 
+                            onClick={() => handleReportClick('src_ip', reportDisplayData.src_ip)}>
+                        {reportDisplayData.src_ip}
+                      </span>
+                    </li>
+                    <li><strong>Asset Hostname</strong>: 
+                      <span className="inline-block cursor-pointer bg-pink-200 px-1 rounded" 
+                            onClick={() => handleReportClick('device_hostname', reportDisplayData.device_hostname)}>
+                        {reportDisplayData.device_hostname}
+                      </span>
+                    </li>
+                    <li><strong>Username</strong>: 
+                      <span className="inline-block cursor-pointer bg-pink-200 px-1 rounded" 
+                            onClick={() => handleReportClick('username', reportDisplayData.username)}>
+                        { reportDisplayData.username}
+                      </span>
+                    </li>
+                  </ul>
+                  
+                  <h3 className="text-lg font-semibold mt-6 mb-2">Description</h3>
+                  <div className="mb-4">
+                    <p><strong>Threat Category</strong>: 
+                      <span className="inline-block cursor-pointer bg-pink-200 px-1 rounded" 
+                            onClick={() => handleReportClick('threat_category', enrichmentData.threatCategory)}>
+                        {enrichmentData.threatCategory}
+                      </span>
+                    </p>
+                    
+                    <div className="mt-2 cursor-pointer" 
+                         onClick={() => handleReportClick('incident_description', reportDisplayData.incident_description)}>
+                      <HtmlVariableDisplay content={enrichmentData.description} isEditMode={true} variableName="incident_description" />
                     </div>
-                  ) : (
-                    <Input
-                      value={editingFieldValue}
-                      onChange={(e) => setEditingFieldValue(e.target.value)}
-                      className="mt-4"
-                    />
-                  )}
-
-                  <DialogFooter className="mt-4">
-                    <Button variant="outline" onClick={handleReportCancel}>Cancel</Button>
-                    <Button onClick={handleReportSave}>Save</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                  </div>
+                  
+                  <h3 className="text-lg font-semibold mt-6 mb-2">Threat Indicators</h3>
+                  <ol className="list-decimal pl-5 mb-4">
+                    <li className="mb-1">
+                      <strong>IP Analysis</strong>: 
+                      <span className="inline-block cursor-pointer" 
+                            onClick={() => handleReportClick('ip_analysis', enrichmentData.threatIndicatorIP)}>
+                        <HtmlVariableDisplay content={enrichmentData.threatIndicatorIP} isEditMode={true} variableName="ip_analysis" />
+                      </span>
+                    </li>
+                    <li className="mb-1">
+                      <strong>Domain Analysis</strong>: 
+                      <span className="inline-block cursor-pointer" 
+                            onClick={() => handleReportClick('domain_analysis', enrichmentData.threatIndicatorDomain)}>
+                        <HtmlVariableDisplay content={enrichmentData.threatIndicatorDomain} isEditMode={true} variableName="domain_analysis" />
+                      </span>
+                    </li>
+                    <li className="mb-1">
+                      <strong>Filehash Analysis</strong>: 
+                      <span className="inline-block cursor-pointer" 
+                            onClick={() => handleReportClick('filehash_analysis', enrichmentData.threatIndicatorHash)}>
+                        <HtmlVariableDisplay content={enrichmentData.threatIndicatorHash} isEditMode={true} variableName="filehash_analysis" />
+                      </span>
+                    </li>
+                  </ol>
+                  
+                  <h3 className="text-lg font-semibold mt-6 mb-2">Technical Recommendation</h3>
+                  <div className="cursor-pointer bg-gray-50 p-3 rounded" 
+                       onClick={() => handleReportClick('recommendation_action', reportDisplayData.recommendation_action)}>
+                    <HtmlVariableDisplay content={enrichmentData.recommendation} isEditMode={true} variableName="recommendation_action" />
+                  </div>
+                </div>
+              ) : (
+                renderTemplate()
+              )}
             </div>
+
+            <Dialog open={isReportModalOpen} onOpenChange={setIsReportModalOpen}>
+              <DialogContent className="max-w-4xl">
+                <DialogHeader>
+                  <DialogTitle>Edit {editingFieldKey ? getFieldLabel(editingFieldKey) : 'Value'}</DialogTitle>
+                  <DialogDescription>
+                    Update the value for {editingFieldKey ? getFieldLabel(editingFieldKey) : 'this field'}.
+                  </DialogDescription>
+                </DialogHeader>
+
+                {editingFieldKey && ['incident_description', 'action_taken', 'ip_analysis', 'domain_analysis', 'filehash_analysis', 'description', 'recommendation_action'].includes(editingFieldKey) ? (
+                  <div className="mt-4">
+                    <Editor
+                      apiKey='9pxbmembo1uetj3qto7w4t0ce6vi14e321zvnvyip544v0yi'
+                      onInit={(evt, editor) => (editorRef.current = editor)}
+                      value={editingFieldValue}
+                      init={{
+                        height: 300,
+                        menubar: false,
+                        plugins: [
+                          'advlist autolink lists link image charmap print preview anchor',
+                          'searchreplace visualblocks code fullscreen',
+                          'insertdatetime media table paste code help wordcount'
+                        ],
+                        toolbar: 'undo redo | formatselect | ' +
+                          'bold italic backcolor | alignleft aligncenter ' +
+                          'alignright alignjustify | bullist numlist outdent indent | ' +
+                          'removeformat | help',
+                        content_style: 'body { font-family:Inter,sans-serif; font-size:14px }',
+                      }}
+                      onEditorChange={(content) => setEditingFieldValue(content)}
+                    />
+                  </div>
+                ) : (
+                  <Input
+                    value={editingFieldValue}
+                    onChange={(e) => setEditingFieldValue(e.target.value)}
+                    className="mt-4"
+                  />
+                )}
+
+                <DialogFooter className="mt-4">
+                  <Button variant="outline" onClick={handleReportCancel}>Cancel</Button>
+                  <Button onClick={handleReportSave}>Save</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </CardContent>
         </Card>
 
@@ -1387,7 +1489,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                         <Label htmlFor="threatCategory" className="text-xs font-medium">
                           Alert Name
                         </Label>
-                       <Card className="p-2 rounded text-xs flex items-center justify-between">
+                        <Card className="p-2 rounded text-xs flex items-center justify-between">
                           <span>{enrichmentData.threatName || ''}</span>
                           {/* //button edit */}
                           <button
@@ -1402,7 +1504,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                         <Label htmlFor="threatCategory" className="text-xs font-medium">
                           Threat Category
                         </Label>
-                       <Card className="p-2 rounded text-xs flex items-center justify-between">
+                        <Card className="p-2 rounded text-xs flex items-center justify-between">
                           <span>{enrichmentData.threatCategory || ''}</span>
                           {/* //button edit */}
                           <button
@@ -1418,22 +1520,22 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                           Threat Indicator - IP
                         </Label>
                         <Card className="p-2 rounded text-xs flex items-center justify-between">
-                            <span dangerouslySetInnerHTML={{ __html: enrichmentData.threatIndicatorIP || 'N/A' }}></span>
-                            {/* //button edit */}
-                            <button
-                              className="text-blue-500 hover:underline"
-                              onClick={() => handleReportClick('ip_analysis', reportDisplayData.ip_analysis)}
-                            >
-                              Edit
-                            </button>
-                          </Card>
+                          <span dangerouslySetInnerHTML={{ __html: enrichmentData.threatIndicatorIP || 'N/A' }}></span>
+                          {/* //button edit */}
+                          <button
+                            className="text-blue-500 hover:underline"
+                            onClick={() => handleReportClick('ip_analysis', reportDisplayData.ip_analysis)}
+                          >
+                            Edit
+                          </button>
+                        </Card>
                       </div>
 
                       <div>
                         <Label htmlFor="threatHash" className="text-xs font-medium">
                           Threat Indicator - Hash
                         </Label>
-                       <Card className="p-2 rounded text-xs flex items-center justify-between">
+                        <Card className="p-2 rounded text-xs flex items-center justify-between">
                           <span dangerouslySetInnerHTML={{ __html: enrichmentData.threatIndicatorHash || 'N/A' }}></span>
                           {/* //button edit */}
                           <button
@@ -1449,7 +1551,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                         <Label htmlFor="threatDomain" className="text-xs font-medium">
                           Threat Indicator - Domain
                         </Label>
-                       <Card className="p-2 rounded text-xs flex items-center justify-between">
+                        <Card className="p-2 rounded text-xs flex items-center justify-between">
                           <span dangerouslySetInnerHTML={{ __html: enrichmentData.threatIndicatorDomain || 'N/A' }}></span>
                           {/* //button edit */}
                           <button
@@ -1466,7 +1568,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                         <Label htmlFor="description" className="text-xs font-medium">
                           Description
                         </Label>
-                       <Card className="p-2 rounded text-xs flex items-center justify-between">
+                        <Card className="p-2 rounded text-xs flex items-center justify-between">
                           <span dangerouslySetInnerHTML={{ __html: enrichmentData.description || 'N/A' }}></span>
                           {/* //button edit */}
                           <button
@@ -1481,7 +1583,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                         <Label htmlFor="recommendation" className="text-xs font-medium flex items-center gap-2">
                           Recommendation
                         </Label>
-                       <Card className="p-2 rounded text-xs flex items-center justify-between">
+                        <Card className="p-2 rounded text-xs flex items-center justify-between">
                           <span dangerouslySetInnerHTML={{ __html: enrichmentData.recommendation || 'N/A' }}></span>
                           {/* //button edit */}
                           <button
@@ -1500,15 +1602,15 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
           </TabsContent>
 
           <TabsContent value="details" className="space-y-6 mt-6">
-            <IncidentDetailsExtraction 
-              rawLogs={incident.raw_logs} 
+            <IncidentDetailsExtraction
+              rawLogs={incident.raw_logs}
               creationTime={incident.creation_time}
               priority={incident.priority}
             />
           </TabsContent>
 
-          <TabsContent value="entities" className="space-y-6 mt-6"> 
-          <EntitiesSection entities={incident.entities} />
+          <TabsContent value="entities" className="space-y-6 mt-6">
+            <EntitiesSection entities={incident.entities} />
           </TabsContent>
 
           <TabsContent value="raw-logs" className="mt-6">
@@ -1550,7 +1652,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
           <CardContent className="space-y-4 pt-6">
             <div className="grid grid-cols-1 gap-4">
 
-              <StatusWorkflowDropdown 
+              <StatusWorkflowDropdown
                 currentStatus={incident.status}
                 incidentId={incident.incident_id}
                 onStatusChange={setCurrentStatus}
@@ -1595,37 +1697,37 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                   Actions
                 </p>
                 <div className="grid grid-cols-1 gap-2">
-                  <Button 
+                  <Button
                     variant="outline"
                     size="sm"
-                onClick={sendEmail}
-                disabled={!recommendationAnalysis || isSendingEmail}
-                className="flex items-center gap-2"
-              >
-                {isSendingEmail ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    Send Notif to Customer
-                  </>
-                )}
-              </Button>
+                    onClick={sendEmail}
+                    disabled={!recommendationAnalysis || isSendingEmail}
+                    className="flex items-center gap-2"
+                  >
+                    {isSendingEmail ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        Send Notif to Customer
+                      </>
+                    )}
+                  </Button>
                   <div className="w-full">
                     {requestChanges.length > 0 ? (
                       <div className="w-full">
                         <div className="px-4 py-2 text-sm text-center text-green-600 bg-green-100 rounded-md border border-green-200 flex items-center justify-center">
                           <Check className="w-4 h-4 mr-2" />
-                          {requestData?.status === 'waiting for approval' 
-                            ? 'Waiting for Approval' 
+                          {requestData?.status === 'waiting for approval'
+                            ? 'Waiting for Approval'
                             : requestData?.status === 'approved'
-                              ? 'Request Approved' 
+                              ? 'Request Approved'
                               : 'Request Submitted'}
                         </div>
                         {requestData?.status === 'waiting for approval' && (
@@ -1687,7 +1789,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                       </div>
                     )}
                   </div>
-                  
+
                   <Dialog open={showConfirmation} onOpenChange={setShowConfirmation}>
                     <DialogContent>
                       <DialogHeader>
@@ -1707,10 +1809,10 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                     </DialogContent>
                   </Dialog>
                   {/* <RequestChangeModal
-                    incidentId={incident.incident_id}
-                    incidentNumber={incident.incident_number}
-                    analystCode={incident.analyst_code}
-                  /> */}
+incidentId={incident.incident_id}
+incidentNumber={incident.incident_number}
+analystCode={incident.analyst_code}
+/> */}
                 </div>
               </div>
             </div>
@@ -1740,7 +1842,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                   {incident.sla_status}
                 </Badge>
               </div>
-              
+
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
                   Resolution SLA
@@ -1776,11 +1878,10 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
                     Time Remaining
                   </p>
                   <p
-                    className={`text-lg font-semibold ${
-                      remainingTime === "BREACHED"
+                    className={`text-lg font-semibold ${remainingTime === "BREACHED"
                         ? "text-red-600"
                         : "text-green-600"
-                    }`}
+                      }`}
                   >
                     {remainingTime}
                   </p>
@@ -1802,51 +1903,51 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
         </Card>
 
 
-          {/* Required Actions */}
-         {requestChanges.length > 0 && <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Clock className="w-5 h-5" />
-                Required Actions
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {isLoadingRequestChanges ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-3/4" />
-                </div>
-              ) : requestChanges.length > 0 ? (
-                <div className="space-y-4">
-                  {requestChanges.length > 0 && (
-                    <div key={requestChanges[0].id} className="border rounded-lg p-4 space-y-2">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-medium">Change Request</p>
-                          <p className="text-sm text-muted-foreground">
+        {/* Required Actions */}
+        {requestChanges.length > 0 && <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Clock className="w-5 h-5" />
+              Required Actions
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isLoadingRequestChanges ? (
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+              </div>
+            ) : requestChanges.length > 0 ? (
+              <div className="space-y-4">
+                {requestChanges.length > 0 && (
+                  <div key={requestChanges[0].id} className="border rounded-lg p-4 space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-medium">Change Request</p>
+                        <p className="text-sm text-muted-foreground">
                           Requested by: {requestChanges[0].analyst_name || 'Unknown'}
-                          </p>
-                        </div>
+                        </p>
                       </div>
-                      
-                      <div className="mt-2">
-                        <p className="text-sm font-medium">Assets:</p>
-                        <p className="text-sm">{requestChanges[0].assets || 'No assets specified'}</p>
-                      </div>
-                      
-                      <Badge variant="outline">
-                          {requestChanges[0].status}
-                        </Badge>
                     </div>
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No pending actions required.
-                </p>
-              )}
-            </CardContent>
-          </Card>}
+
+                    <div className="mt-2">
+                      <p className="text-sm font-medium">Assets:</p>
+                      <p className="text-sm">{requestChanges[0].assets || 'No assets specified'}</p>
+                    </div>
+
+                    <Badge variant="outline">
+                      {requestChanges[0].status}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No pending actions required.
+              </p>
+            )}
+          </CardContent>
+        </Card>}
 
 
         {/* Tags */}
@@ -1885,4 +1986,3 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
 }
 
 export default IncidentDetail;
-
